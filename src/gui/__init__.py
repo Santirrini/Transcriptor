@@ -1,0 +1,1 @@
+# Este archivo hace que el directorio 'src/gui' sea un paquete Python.

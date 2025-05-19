@@ -1,0 +1,22 @@
+# Dependencias principales
+faster-whisper>=0.10.0
+customtkinter>=5.2.2
+python-dotenv>=1.0.1
+fpdf2>=2.7.8
+pillow>=10.0.0  # Para soporte de imágenes en CustomTkinter
+
+# Dependencias para YouTube
+pytube>=15.0.0
+yt-dlp>=2024.6.8
+
+# Dependencias para procesamiento de audio
+ffmpeg-python>=0.2.0
+pydub>=0.25.1
+numpy>=1.20.0
+
+# Dependencias para diarización
+pyannote.audio>=3.0.0
+
+# Dependencias para pruebas (opcionales)
+pytest>=7.4.4
+pytest-mock>=3.12.0
