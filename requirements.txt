@@ -1,13 +1,13 @@
 # Dependencias principales
-faster-whisper>=0.10.0
+faster-whisper>=1.1.0
 customtkinter>=5.2.2
 python-dotenv>=1.0.1
-fpdf2>=2.7.8
+fpdf2>=2.8.3
 pillow>=10.0.0  # Para soporte de imágenes en CustomTkinter
 
 # Dependencias para YouTube
-pytube>=15.0.0
-yt-dlp>=2024.6.8
+# pytube>=15.0.0  # ELIMINADO: Obsoleto y no mantenido desde 2023, usar yt-dlp
+yt-dlp>=2025.07.21  # CVE-2025-54072 RCE Fixed
 
 # Dependencias para procesamiento de audio
 ffmpeg-python>=0.2.0
