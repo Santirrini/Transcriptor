@@ -3,6 +3,7 @@ venv/
 env/
 .venv/
 .env/
+whisper_env_py311/
 
 # Caché de Python
 __pycache__/
@@ -12,66 +13,54 @@ __pycache__/
 .vscode/
 .idea/
 
-# Archivos de dependencias instaladas (gestionadas por requirements.txt)
-# No subir la carpeta 'site-packages' o similar si no está en un venv.
+# Binarios y Librerías (Generalmente grandes y no deben versionarse)
+*.lib
+*.dll
+*.exe
+*.so
+*.dylib
 
-# Modelos descargados automáticamente por Whisper, Pyannote, PyTorch, HuggingFace
-# Generalmente se guardan en ~/.cache/ a nivel de sistema, no en el proyecto.
-# Si por alguna razón los guardas en el proyecto, añádelos aquí:
-# *.pt
-# *.pth
-# *.bin
-# *.onnx
-# whisper_models/
-# pyannote_models/
+# Modelos y Pesos (Whisper, PyTorch, etc)
+*.pt
+*.pth
+*.bin
+*.onnx
+whisper_models/
+pyannote_models/
 
 # Archivos de datos de entrada grandes (audio, video)
-# Si tienes una carpeta 'data' con audios grandes, por ejemplo:
-# data/
 *.wav
 *.mp3
 *.mp4
 *.m4a
-# Excepción: si tienes una carpeta con muestras pequeñas que SÍ quieres subir:
-# !sample_data/*.wav
 
-# Archivos de resultados generados (transcripciones, diarizaciones)
-# Si no quieres versionar los archivos de salida:
-# results/
-# transcripts/
-# diarization_outputs/
-# *.txt
-# *.srt
-# *.vtt
-# *.rttm
-# *.json
+# Archivos de resultados generados
+results/
+transcripts/
+diarization_outputs/
+*.txt
+*.srt
+*.vtt
+*.rttm
 
-# Archivos de logs
+# Archivos de logs y temporales
 *.log
-
-# Archivos temporales
 *.tmp
 
-# Bases de datos SQLite (si las usas para algo temporal o local)
+# Bases de datos
 *.sqlite3
 *.db
-
-# Archivos de Jupyter Notebook Checkpoints
-.ipynb_checkpoints/
-
-# Carpetas de herramientas específicas locales
-.clinerules/
-.continue/
-.roo/
-.roomodes
 
 # Artefactos de compilación y salida
 Output/
 build/
 dist/
 
-# Si decides no incluir ffmpeg (opcional) - Si quieres ignorarlos, DESCOMENTA la línea de abajo
- ffmpeg/
-
-# Si memory-bank es temporal/caché - Si quieres ignorarlos, DESCOMENTA la línea de abajo
- memory-bank/
+# Otros
+ffmpeg/
+memory-bank/
+.clinerules/
+.continue/
+.roo/
+.roomodes
+youtube_downloads/

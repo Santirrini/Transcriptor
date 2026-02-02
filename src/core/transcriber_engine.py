@@ -227,8 +227,17 @@ class TranscriberEngine:
             Exception: Captura cualquier otro error inesperado durante la ejecución.
         """
         print(f"[DEBUG] Preprocesando audio para diarización: {input_filepath} -> {output_filepath}")
+        
+        # Obtener la ruta de FFmpeg (relativa al directorio del proyecto)
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        ffmpeg_executable = os.path.join(project_root, 'ffmpeg', 'ffmpeg.exe')
+        
+        # Si no existe el ejecutable en el proyecto, intentar usar el del sistema
+        if not os.path.exists(ffmpeg_executable):
+            ffmpeg_executable = 'ffmpeg'
+        
         command = [
-            'ffmpeg',
+            ffmpeg_executable,
             '-i', input_filepath,
             '-acodec', 'pcm_s16le', # PCM de 16 bits little-endian
             '-ar', '16000',         # Tasa de muestreo 16kHz
@@ -712,6 +721,10 @@ class TranscriberEngine:
         # Paso 1: Descargar a WAV con yt-dlp (sin forzar -ar y -ac aquí)
         temp_download_name_template = os.path.join(output_dir, '%(title)s_%(id)s_temp_download') # Sin extensión aún
 
+        # Obtener la ruta de FFmpeg (relativa al directorio del proyecto)
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        ffmpeg_path = os.path.join(project_root, 'ffmpeg')
+        
         ydl_opts_download = {
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -723,6 +736,7 @@ class TranscriberEngine:
             'noplaylist': True,
             'quiet': False, # Puedes ponerlo a True en producción
             'progress_hooks': [lambda d: self._yt_dlp_progress_hook(d)],
+            'ffmpeg_location': ffmpeg_path,  # Ubicación del ejecutable FFmpeg
         }
 
         downloaded_wav_path_initial = None
