@@ -28,6 +28,26 @@ from src.gui.components.fragments_section import FragmentsSection
 from src.gui.components.transcription_area import TranscriptionArea
 from src.gui.components.action_buttons import ActionButtons
 from src.gui.components.footer import Footer
+from src.gui.components.update_notification import (
+    UpdateNotificationManager,
+    show_update_banner,
+)
+from src.core.update_checker import UpdateChecker, UpdateInfo, UpdateSeverity
+from src.core.integrity_checker import (
+    IntegrityChecker,
+    IntegrityReport,
+    verify_critical_files_exist,
+    integrity_checker,
+)
+from src.core.audit_logger import (
+    audit_logger,
+    log_file_open,
+    log_file_export,
+    log_youtube_download,
+    log_transcription_start,
+    log_transcription_complete,
+)
+from src.core.audit_logger import AuditEventType
 from src.core.logger import logger
 
 
@@ -146,6 +166,153 @@ class MainWindow(ctk.CTk):
 
         # Iniciar polling de cola
         self.after(100, self._check_queue)
+
+        # Configurar sistema de actualizaciones
+        self.update_notification_manager = None
+        self.update_checker = None
+        self._setup_update_checker()
+
+        # Verificar integridad de archivos críticos
+        self._perform_integrity_check()
+
+    def _perform_integrity_check(self):
+        """Verifica la integridad de los archivos críticos al inicio."""
+        try:
+            logger.info("Iniciando verificación de integridad...")
+
+            # Primero verificar que existan los archivos críticos básicos
+            all_exist, missing_files = verify_critical_files_exist()
+
+            if not all_exist:
+                logger.security(
+                    f"[INTEGRITY CHECK] Archivos críticos faltantes: {missing_files}"
+                )
+                # Mostrar advertencia al usuario
+                self.after(1000, lambda: self._show_integrity_warning(missing_files))
+                return
+
+            # Verificación completa de integridad (si hay manifest)
+            report = integrity_checker.verify_integrity(critical_only=True)
+
+            if not report.is_valid:
+                invalid_files = [r.file_name for r in report.results if not r.is_valid]
+                logger.security(
+                    f"[INTEGRITY CHECK] Archivos modificados: {invalid_files}"
+                )
+                # Mostrar advertencia al usuario
+                self.after(
+                    1000,
+                    lambda: self._show_integrity_warning(
+                        invalid_files, is_modification=True
+                    ),
+                )
+            else:
+                logger.info("[INTEGRITY CHECK] Verificación de integridad exitosa")
+
+        except Exception as e:
+            logger.error(f"Error en verificación de integridad: {e}")
+            # No bloquear la aplicación si falla la verificación
+
+    def _show_integrity_warning(self, files, is_modification=False):
+        """
+        Muestra advertencia de problemas de integridad.
+
+        Args:
+            files: Lista de archivos problemáticos
+            is_modification: True si son archivos modificados, False si faltan
+        """
+        try:
+            if is_modification:
+                title = "⚠️ Advertencia de Seguridad"
+                message = (
+                    f"Se detectaron modificaciones en archivos críticos:\n\n"
+                    f"{chr(10).join(files[:5])}\n\n"
+                    f"{'... y más' if len(files) > 5 else ''}\n\n"
+                    f"La aplicación puede no funcionar correctamente o ser insegura. "
+                    f"Se recomienda reinstalar desde la fuente oficial."
+                )
+            else:
+                title = "⚠️ Archivos Faltantes"
+                message = (
+                    f"Faltan archivos críticos de la aplicación:\n\n"
+                    f"{chr(10).join(files[:5])}\n\n"
+                    f"{'... y más' if len(files) > 5 else ''}\n\n"
+                    f"La aplicación puede no funcionar correctamente. "
+                    f"Se recomienda reinstalar la aplicación."
+                )
+
+            # Usar after para no bloquear el inicio
+            self.after(0, lambda: messagebox.showwarning(title, message))
+
+        except Exception as e:
+            logger.error(f"Error mostrando advertencia de integridad: {e}")
+
+    def _setup_update_checker(self):
+        """Configura el verificador de actualizaciones."""
+        try:
+            # Crear gestor de notificaciones
+            self.update_notification_manager = UpdateNotificationManager(
+                self.main_container, theme_manager
+            )
+
+            # Crear verificador de actualizaciones
+            self.update_checker = UpdateChecker(
+                check_interval_days=7, on_update_available=self._on_update_available
+            )
+
+            # Verificar actualizaciones en background después de 2 segundos
+            self.after(2000, self._check_for_updates_async)
+
+            logger.info("Sistema de actualizaciones configurado")
+        except Exception as e:
+            logger.error(f"Error configurando sistema de actualizaciones: {e}")
+
+    def _check_for_updates_async(self):
+        """Inicia verificación de actualizaciones en background."""
+        if self.update_checker:
+            logger.debug("Iniciando verificación de actualizaciones en background")
+            self.update_checker.check_for_updates_async()
+
+    def _on_update_available(self, update_info: UpdateInfo):
+        """
+        Callback cuando hay una actualización disponible.
+
+        Args:
+            update_info: Información de la actualización disponible
+        """
+        logger.info(f"Actualización disponible detectada: {update_info}")
+
+        # Usar after() para ejecutar en el hilo principal de la GUI
+        self.after(0, lambda: self._show_update_notification(update_info))
+
+    def _show_update_notification(self, update_info: UpdateInfo):
+        """
+        Muestra la notificación de actualización en la UI.
+
+        Args:
+            update_info: Información de la actualización
+        """
+        try:
+            if self.update_notification_manager:
+                self.update_notification_manager.show_update_notification(
+                    update_info, on_skip=self._on_skip_version, on_dismiss=None
+                )
+                logger.info(
+                    f"Notificación de actualización mostrada: v{update_info.version}"
+                )
+        except Exception as e:
+            logger.error(f"Error mostrando notificación de actualización: {e}")
+
+    def _on_skip_version(self, version: str):
+        """
+        Callback cuando el usuario omite una versión.
+
+        Args:
+            version: Versión omitida
+        """
+        if self.update_checker:
+            self.update_checker.skip_version(version)
+            logger.info(f"Usuario omitió la versión {version}")
 
     def _get_color(self, color_name: str):
         """Helper para obtener tupla de colores (light, dark) para CTk."""
@@ -368,6 +535,11 @@ class MainWindow(ctk.CTk):
             self.tabs.file_label.configure(
                 text=filename, text_color=self._get_color("text")
             )
+            # Log audit event
+            try:
+                log_file_open(filepath, os.path.getsize(filepath))
+            except Exception as e:
+                logger.error(f"Error logging file open: {e}")
 
     def start_transcription(self):
         """Inicia el proceso de transcripción."""
@@ -387,6 +559,23 @@ class MainWindow(ctk.CTk):
             )
 
             # Iniciar transcripción en un hilo separado para no bloquear la GUI
+            
+            # Log audit start
+            try:
+                log_transcription_start(
+                    self.audio_filepath,
+                    lang,
+                    model,
+                    {
+                        "beam_size": beam_size,
+                        "vad": use_vad,
+                        "diarization": diarization,
+                        "parallel": parallel
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Error logging transcription start: {e}")
+
             thread = threading.Thread(
                 target=self.transcriber_engine.transcribe_audio_threaded,
                 args=(
@@ -570,6 +759,16 @@ class MainWindow(ctk.CTk):
             self.progress_section.stats_label.configure(
                 text=f"Tiempo total: {self._format_time(real_time)}"
             )
+
+            # Log audit complete
+            try:
+                log_transcription_complete(
+                    real_time,
+                    len(final_text.split()),
+                    {"model": self.model_var.get(), "lang": self.language_var.get()}
+                )
+            except Exception as e:
+                logger.error(f"Error logging transcription complete: {e}")
 
         elif msg_type == "error":
             self.is_transcribing = False
@@ -878,6 +1077,10 @@ class MainWindow(ctk.CTk):
                 self.progress_section.status_label.configure(
                     text=f"Guardado en: {os.path.basename(filepath)}"
                 )
+                try:
+                    log_file_export(filepath, "txt", os.path.getsize(filepath))
+                except Exception:
+                    pass
                 messagebox.showinfo("Éxito", "Transcripción guardada correctamente.")
             except Exception as e:
                 messagebox.showerror("Error", f"Error al guardar: {e}")
@@ -901,6 +1104,10 @@ class MainWindow(ctk.CTk):
                 self.progress_section.status_label.configure(
                     text=f"Guardado en: {os.path.basename(filepath)}"
                 )
+                try:
+                    log_file_export(filepath, "pdf", os.path.getsize(filepath))
+                except Exception:
+                    pass
                 messagebox.showinfo("Éxito", "Transcripción guardada correctamente.")
             except Exception as e:
                 messagebox.showerror("Error", f"Error al guardar: {e}")

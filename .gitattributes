@@ -1,0 +1,90 @@
+# Configuración de finales de línea para el proyecto
+# https://git-scm.com/docs/gitattributes
+
+# Establecer LF como estándar para todos los archivos de texto
+* text=auto eol=lf
+
+# Archivos Python - LF
+*.py text eol=lf
+*.pyw text eol=lf
+
+# Archivos de configuración - LF
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.cfg text eol=lf
+*.ini text eol=lf
+
+# Scripts de shell - LF
+*.sh text eol=lf
+
+# Scripts de Windows - CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Archivos de documentación - LF
+*.md text eol=lf
+*.txt text eol=lf
+*.rst text eol=lf
+
+# Archivos de código web - LF
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+
+# Archivos de datos - binarios (no convertir)
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+
+# Archivos de audio/video - binarios
+*.mp3 binary
+*.wav binary
+*.flac binary
+*.ogg binary
+*.m4a binary
+*.aac binary
+*.opus binary
+*.wma binary
+*.mp4 binary
+*.avi binary
+*.mkv binary
+
+# Archivos de imagen - binarios
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text eol=lf
+
+# Archivos comprimidos - binarios
+*.zip binary
+*.tar binary
+*.gz binary
+*.bz2 binary
+*.7z binary
+*.rar binary
+
+# Archivos de documentos - binarios
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.ppt binary
+*.pptx binary
+
+# Archivos ejecutables - binarios
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+
+# Archivos de fuentes - binarios
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.eot binary

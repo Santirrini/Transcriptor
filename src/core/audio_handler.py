@@ -9,6 +9,7 @@ import queue
 
 from src.core.exceptions import AudioProcessingError, YouTubeDownloadError, SecurityError
 from src.core.logger import logger
+from src.core.audit_logger import log_youtube_download, audit_logger, AuditEventType
 
 
 class AudioHandler:
@@ -150,6 +151,11 @@ class AudioHandler:
             if char in str(input_path) or char in str(output_path):
                 error_msg = f"Caracter peligroso detectado en ruta: '{char}'. Operación abortada por seguridad."
                 logger.security(error_msg)
+                audit_logger.log_security_event(
+                    AuditEventType.SECURITY_VALIDATION_FAIL, 
+                    "Path injection attempt detected", 
+                    {"char": char, "input": str(input_path), "output": str(output_path)}
+                )
                 raise SecurityError(error_msg, violation_type="path_injection")
 
     def preprocess_audio(self, input_filepath: str, output_filepath: str):
@@ -311,12 +317,15 @@ class AudioHandler:
                 and os.path.exists(downloaded_wav_path_initial)
             ):
                 os.remove(downloaded_wav_path_initial)
-
+            
+            # Log success
+            log_youtube_download(youtube_url, True)
             return final_standardized_wav_path
 
         except (yt_dlp.utils.DownloadError, OSError, IOError) as e:
             error_msg = f"Error en descarga de YouTube: {str(e)}"
             logger.error(error_msg)
+            log_youtube_download(youtube_url, False, error_msg)
             if self.gui_queue:
                 self.gui_queue.put({"type": "error", "data": error_msg})
             return None
@@ -324,6 +333,7 @@ class AudioHandler:
             # Catch-all para errores inesperados de yt-dlp
             error_msg = f"Error inesperado en descarga de YouTube: {str(e)}"
             logger.error(error_msg)
+            log_youtube_download(youtube_url, False, error_msg)
             if self.gui_queue:
                 self.gui_queue.put({"type": "error", "data": error_msg})
             return None
