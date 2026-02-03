@@ -4,9 +4,7 @@ import os
 import re
 from pathlib import Path
 from faster_whisper import WhisperModel
-from fpdf import FPDF
 import time
-import yt_dlp
 import tempfile
 import subprocess
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
@@ -14,6 +12,9 @@ import asyncio
 from functools import partial
 import multiprocessing as mp
 from typing import List, Tuple, Optional, Dict, Any
+
+from src.core.exporter import TranscriptionExporter
+from src.core.audio_handler import AudioHandler
 
 
 def _transcribe_chunk_worker(
@@ -167,41 +168,12 @@ class TranscriberEngine:
         self._async_loop = None
         self._thread_pool = ThreadPoolExecutor(max_workers=2)  # Para I/O bound tasks
 
+        # Inicializar manejadores especializados
+        self.exporter = TranscriptionExporter()
+        self.audio_handler = AudioHandler()
+
     def _verify_ffmpeg_available(self):
-        """
-        Verifica que FFmpeg esté disponible antes de intentar usarlo.
-
-        Returns:
-            str: Ruta al ejecutable de FFmpeg si está disponible.
-
-        Raises:
-            RuntimeError: Si FFmpeg no se encuentra en el sistema.
-        """
-        # Obtener la ruta de FFmpeg (relativa al directorio del proyecto)
-        project_root = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        )
-        ffmpeg_executable = os.path.join(project_root, "ffmpeg", "ffmpeg.exe")
-
-        # Verificar si existe el ejecutable empaquetado
-        if os.path.exists(ffmpeg_executable):
-            return ffmpeg_executable
-
-        # Si no, intentar usar FFmpeg del sistema
-        try:
-            subprocess.run(
-                ["ffmpeg", "-version"], capture_output=True, check=True, timeout=5
-            )
-            return "ffmpeg"
-        except (
-            subprocess.CalledProcessError,
-            FileNotFoundError,
-            subprocess.TimeoutExpired,
-        ):
-            raise RuntimeError(
-                "FFmpeg no encontrado. Asegúrate de que FFmpeg esté instalado "
-                "o que el ejecutable esté en la carpeta 'ffmpeg' del proyecto."
-            )
+        return self.audio_handler._verify_ffmpeg_available()
 
     def _get_file_size(self, filepath: str) -> int:
         """Obtiene el tamaño del archivo en bytes."""
@@ -216,38 +188,22 @@ class TranscriberEngine:
             # En tests, getsize puede estar mockeado devolviendo un objeto MagicMock
             # que no se puede convertir a int directamente.
             file_size = self._get_file_size(filepath)
-            
+
             # Intentar conversión segura a int, si falla (ej. Mock), retornar False
-            if hasattr(file_size, "__int__") or isinstance(file_size, (int, float, str)):
+            if hasattr(file_size, "__int__") or isinstance(
+                file_size, (int, float, str)
+            ):
                 actual_size = int(file_size)
             else:
                 return False
-                
+
             return actual_size > int(self._max_file_size_chunked)
         except (ValueError, TypeError, Exception):
             # En caso de cualquier error en la comparación, por defecto no usar chunks
             return False
 
     def _get_audio_duration(self, filepath: str) -> float:
-        """Obtiene la duración del audio usando FFmpeg."""
-        try:
-            ffmpeg_executable = self._verify_ffmpeg_available()
-            command = [ffmpeg_executable, "-i", filepath, "-f", "null", "-"]
-            result = subprocess.run(command, capture_output=True, text=True, timeout=30)
-            # Parsear duración del stderr
-            import re
-
-            duration_match = re.search(
-                r"Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})", result.stderr
-            )
-            if duration_match:
-                hours = int(duration_match.group(1))
-                minutes = int(duration_match.group(2))
-                seconds = float(duration_match.group(3))
-                return hours * 3600 + minutes * 60 + seconds
-        except Exception as e:
-            print(f"[WARNING] No se pudo obtener duración: {e}")
-        return 0.0
+        return self.audio_handler.get_audio_duration(filepath)
 
     def _load_model(self, model_size: str):
         """
@@ -469,104 +425,7 @@ class TranscriberEngine:
     def _preprocess_audio_for_diarization(
         self, input_filepath: str, output_filepath: str
     ):
-        """
-        Convierte un archivo de audio a formato WAV PCM 16kHz mono usando FFmpeg.
-
-        Este preprocesamiento es necesario para asegurar la compatibilidad y el rendimiento
-        óptimo del pipeline de diarización de pyannote.audio. Requiere que la herramienta
-        de línea de comandos FFmpeg esté instalada en el sistema y accesible a través del PATH.
-
-        SEGURIDAD: Implementa validación de rutas para prevenir inyección de comandos.
-
-        Args:
-            input_filepath (str): La ruta completa al archivo de audio de entrada.
-            output_filepath (str): La ruta completa donde se guardará el archivo WAV de salida.
-
-        Raises:
-            FileNotFoundError: Si el ejecutable de FFmpeg no se encuentra en el PATH del sistema.
-            subprocess.CalledProcessError: Si el comando FFmpeg se ejecuta pero retorna un código
-                                           de salida distinto de cero, indicando un error en la conversión.
-            RuntimeError: Para errores generales durante el proceso de preprocesamiento, encapsulando
-                          los errores específicos de FFmpeg o del sistema.
-            Exception: Captura cualquier otro error inesperado durante la ejecución.
-            ValueError: Si se detectan caracteres peligrosos en las rutas de archivo.
-        """
-        # Validación de seguridad: sanitizar rutas para prevenir inyección de comandos
-        input_path = Path(input_filepath).resolve()
-        output_path = Path(output_filepath).resolve()
-
-        # Verificar caracteres peligrosos que podrían usarse para inyección de comandos
-        dangerous_chars = [";", "|", "&", "$", "`", "||", "&&", ">", "<", "(", ")"]
-        for char in dangerous_chars:
-            if char in str(input_path) or char in str(output_path):
-                error_msg = f"Caracter peligroso detectado en ruta: '{char}'. Operación abortada por seguridad."
-                print(f"[SECURITY ERROR] {error_msg}")
-                raise ValueError(error_msg)
-
-        # Verificar extensiones de archivo permitidas
-        allowed_extensions = [
-            ".wav",
-            ".mp3",
-            ".aac",
-            ".flac",
-            ".ogg",
-            ".m4a",
-            ".opus",
-            ".wma",
-            ".aiff",
-            ".alac",
-        ]
-        if input_path.suffix.lower() not in allowed_extensions:
-            error_msg = f"Extensión de archivo no permitida: {input_path.suffix}. Solo se permiten: {', '.join(allowed_extensions)}"
-            print(f"[SECURITY ERROR] {error_msg}")
-            raise ValueError(error_msg)
-
-        print(
-            f"[DEBUG] Preprocesando audio para diarización: {input_path} -> {output_path}"
-        )
-
-        # Verificar que FFmpeg esté disponible antes de continuar
-        try:
-            ffmpeg_executable = self._verify_ffmpeg_available()
-            print(f"[DEBUG] FFmpeg encontrado: {ffmpeg_executable}")
-        except RuntimeError as e:
-            print(f"[ERROR] {e}")
-            raise
-
-        # Construir comando de forma segura usando lista (previene inyección)
-        command = [
-            ffmpeg_executable,
-            "-i",
-            str(input_path),  # Convertir a string seguro
-            "-acodec",
-            "pcm_s16le",  # PCM de 16 bits little-endian
-            "-ar",
-            "16000",  # Tasa de muestreo 16kHz
-            "-ac",
-            "1",  # Mono
-            "-y",  # Sobrescribir archivo de salida sin preguntar
-            str(output_path),  # Convertir a string seguro
-        ]
-        try:
-            # Ejecutar el comando FFmpeg
-            # capture_output=True para capturar stdout/stderr
-            # text=True para decodificar stdout/stderr como texto
-            result = subprocess.run(command, check=True, capture_output=True, text=True)
-            print(f"[DEBUG] FFmpeg stdout:\n{result.stdout}")
-            print(f"[DEBUG] FFmpeg stderr:\n{result.stderr}")
-            print(f"[DEBUG] Audio preprocesado exitosamente a {output_path}")
-        except FileNotFoundError:
-            error_msg = "Error: FFmpeg no encontrado. Asegúrate de que FFmpeg esté instalado y en tu PATH."
-            print(f"[ERROR] {error_msg}")
-            raise RuntimeError(error_msg)
-        except subprocess.CalledProcessError as e:
-            error_msg = f"Error durante la ejecución de FFmpeg: {e.stderr}"
-            print(f"[ERROR] {error_msg}")
-            raise RuntimeError(f"Fallo en preprocesamiento de audio: {error_msg}")
-        except Exception as e:
-            error_msg = f"Error inesperado durante el preprocesamiento de audio: {e}"
-            print(f"[ERROR] {error_msg}")
-            raise RuntimeError(f"Fallo en preprocesamiento de audio: {error_msg}")
+        return self.audio_handler.preprocess_audio(input_filepath, output_filepath)
 
     def pause_transcription(self):
         """Pausa el proceso de transcripción."""
@@ -685,72 +544,6 @@ class TranscriberEngine:
             # Asegurarse de que el mensaje de error se envíe a la cola correcta
             result_queue.put({"type": "error", "data": str(e)})
 
-    def _perform_transcription(
-        self,
-        audio_filepath: str,
-        transcription_queue: queue.Queue,
-        language: str = "es",
-        model_instance=None,
-        selected_beam_size: int = 5,
-        use_vad: bool = False,
-        perform_diarization: bool = False,
-        live_transcription: bool = False,
-        parallel_processing: bool = False,
-    ) -> str:
-        """
-        Realiza la transcripción real de un archivo de audio utilizando faster-whisper.
-
-        Esta función se ejecuta dentro de un hilo separado para no bloquear la interfaz de usuario.
-        Procesa el audio, maneja las señales de pausa y cancelación, integra la diarización de hablantes
-        si está activada y envía actualizaciones de progreso, segmentos transcritos y mensajes de error
-        a través de una cola de mensajes para que la GUI los procese.
-
-        Args:
-            audio_filepath (str): La ruta completa al archivo de audio que se va a transcribir.
-                                  Se espera que sea un formato compatible con FFmpeg.
-            transcription_queue (queue.Queue): Una instancia de `queue.Queue` utilizada para
-                                               comunicar el estado, progreso, segmentos transcritos
-                                               y errores de vuelta a la interfaz gráfica de usuario.
-            language (str, optional): El idioma del audio a transcribir. Puede ser un código
-                                      ISO 639-1 (ej. "es", "en") o "auto" para detección automática.
-                                      Por defecto es "es".
-            model_instance: Una instancia cargada de `faster_whisper.WhisperModel`. Este parámetro
-                            es requerido y debe ser un modelo válido.
-            selected_beam_size (int, optional): El tamaño del haz para la decodificación. Un tamaño
-                                                mayor puede mejorar la precisión pero aumenta el
-                                                tiempo de procesamiento. Por defecto es 5.
-            use_vad (bool, optional): Si es `True`, aplica un filtro de detección de actividad de voz
-                                      para omitir segmentos de silencio. Por defecto es `False`.
-            perform_diarization (bool, optional): Si es `True`, intenta realizar la diarización
-                                                  de hablantes utilizando `pyannote.audio` después
-                                                  de la transcripción inicial. Requiere que el
-                                                  pipeline de diarización se haya cargado
-                                                  exitosamente. Por defecto es `False`.
-
-        Returns:
-            str: Una cadena vacía (`""`). Los resultados de la transcripción final (con o sin
-                 diarización) se envían a través de la `transcription_queue` con el tipo
-                 `"transcription_finished"`.
-
-        Raises:
-            FileNotFoundError: Si el archivo especificado en `audio_filepath` no existe.
-            RuntimeError: Si ocurre un fallo durante el preprocesamiento del archivo de audio
-                          necesario para la diarización (ej. FFmpeg no encontrado o error de ejecución).
-            RuntimeError: Si hay un fallo al cargar o ejecutar el pipeline de diarización
-                          de `pyannote.audio`.
-            Exception: Captura y reporta cualquier otro error inesperado que ocurra durante
-                       el proceso de transcripción o diarización a través de la cola.
-        """
-        if not os.path.exists(audio_filepath):
-            if transcription_queue:
-                transcription_queue.put(
-                    {
-                        "type": "error",
-                        "data": f"Archivo no encontrado: {audio_filepath}",
-                    }
-                )
-            return ""
-
     def _perform_chunked_transcription(
         self,
         audio_filepath: str,
@@ -793,16 +586,18 @@ class TranscriberEngine:
             for i in range(num_chunks):
                 start_time = i * chunk_duration
                 end_time = min((i + 1) * chunk_duration, total_duration)
-                chunk_infos.append({
-                    "chunk_index": i,
-                    "audio_path": audio_filepath,
-                    "start_time": start_time,
-                    "duration": end_time - start_time,
-                    "language": language,
-                    "beam_size": selected_beam_size,
-                    "use_vad": use_vad,
-                    "ffmpeg_executable": ffmpeg_executable,
-                })
+                chunk_infos.append(
+                    {
+                        "chunk_index": i,
+                        "audio_path": audio_filepath,
+                        "start_time": start_time,
+                        "duration": end_time - start_time,
+                        "language": language,
+                        "beam_size": selected_beam_size,
+                        "use_vad": use_vad,
+                        "ffmpeg_executable": ffmpeg_executable,
+                    }
+                )
 
             results_by_index = {}
             completed_chunks = 0
@@ -813,11 +608,11 @@ class TranscriberEngine:
             def process_segment(chunk_info):
                 if self._cancel_event.is_set():
                     return chunk_info["chunk_index"], None, "Cancelled"
-                
+
                 # Esperar si está pausado
                 while self._paused and not self._cancel_event.is_set():
                     time.sleep(0.1)
-                
+
                 if self._cancel_event.is_set():
                     return chunk_info["chunk_index"], None, "Cancelled"
 
@@ -831,14 +626,19 @@ class TranscriberEngine:
 
             if parallel_processing:
                 max_workers = min(self._max_workers, num_chunks, 4)
-                print(f"[INFO] Iniciando procesamiento paralelo con {max_workers} workers.")
+                print(
+                    f"[INFO] Iniciando procesamiento paralelo con {max_workers} workers."
+                )
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    future_to_chunk = {executor.submit(process_segment, info): info for info in chunk_infos}
-                    
+                    future_to_chunk = {
+                        executor.submit(process_segment, info): info
+                        for info in chunk_infos
+                    }
+
                     for future in as_completed(future_to_chunk):
                         if self._cancel_event.is_set():
                             break
-                            
+
                         idx, text, error = future.result()
                         if error:
                             failed_chunks += 1
@@ -847,32 +647,43 @@ class TranscriberEngine:
                             completed_chunks += 1
                             results_by_index[idx] = (text, None)
                             if live_transcription and transcription_queue:
-                                transcription_queue.put({"type": "new_segment", "text": text + " ", "idx": idx})
-                        
+                                transcription_queue.put(
+                                    {
+                                        "type": "new_segment",
+                                        "text": text + " ",
+                                        "idx": idx,
+                                    }
+                                )
+
                         # Actualizar progreso
                         total_done = completed_chunks + failed_chunks
                         progress = (total_done / num_chunks) * 100
                         elapsed = time.time() - start_process_time
                         if transcription_queue:
-                            transcription_queue.put({
-                                "type": "progress_update",
-                                "data": {
-                                    "percentage": progress,
-                                    "current_time": total_done * chunk_duration,
-                                    "total_duration": total_duration,
-                                    "estimated_remaining_time": (num_chunks - total_done) * (elapsed / max(total_done, 1)),
-                                    "processing_rate": total_done / max(elapsed, 1),
-                                    "parallel_workers": max_workers,
-                                    "chunks_completed": completed_chunks,
-                                    "chunks_failed": failed_chunks,
+                            transcription_queue.put(
+                                {
+                                    "type": "progress_update",
+                                    "data": {
+                                        "percentage": progress,
+                                        "current_time": total_done * chunk_duration,
+                                        "total_duration": total_duration,
+                                        "estimated_remaining_time": (
+                                            num_chunks - total_done
+                                        )
+                                        * (elapsed / max(total_done, 1)),
+                                        "processing_rate": total_done / max(elapsed, 1),
+                                        "parallel_workers": max_workers,
+                                        "chunks_completed": completed_chunks,
+                                        "chunks_failed": failed_chunks,
+                                    },
                                 }
-                            })
+                            )
             else:
                 # Procesamiento secuencial
                 for info in chunk_infos:
                     if self._cancel_event.is_set():
                         break
-                    
+
                     idx, text, error = process_segment(info)
                     if error:
                         failed_chunks += 1
@@ -880,52 +691,64 @@ class TranscriberEngine:
                     else:
                         completed_chunks += 1
                         results_by_index[idx] = (text, None)
-                        if (live_transcription or True) and transcription_queue: # Por defecto live en secuencial
-                             transcription_queue.put({"type": "new_segment", "text": text + " ", "idx": idx})
-                    
+                        if (
+                            live_transcription or True
+                        ) and transcription_queue:  # Por defecto live en secuencial
+                            transcription_queue.put(
+                                {"type": "new_segment", "text": text + " ", "idx": idx}
+                            )
+
                     total_done = completed_chunks + failed_chunks
                     progress = (total_done / num_chunks) * 100
                     elapsed = time.time() - start_process_time
                     if transcription_queue:
-                        transcription_queue.put({
-                            "type": "progress_update",
-                            "data": {
-                                "percentage": progress,
-                                "current_time": total_done * chunk_duration,
-                                "total_duration": total_duration,
-                                "estimated_remaining_time": (num_chunks - total_done) * (elapsed / max(total_done, 1)),
-                                "processing_rate": total_done / max(elapsed, 1),
-                                "parallel_workers": 1,
-                                "chunks_completed": completed_chunks,
-                                "chunks_failed": failed_chunks,
+                        transcription_queue.put(
+                            {
+                                "type": "progress_update",
+                                "data": {
+                                    "percentage": progress,
+                                    "current_time": total_done * chunk_duration,
+                                    "total_duration": total_duration,
+                                    "estimated_remaining_time": (
+                                        num_chunks - total_done
+                                    )
+                                    * (elapsed / max(total_done, 1)),
+                                    "processing_rate": total_done / max(elapsed, 1),
+                                    "parallel_workers": 1,
+                                    "chunks_completed": completed_chunks,
+                                    "chunks_failed": failed_chunks,
+                                },
                             }
-                        })
+                        )
 
             if self._cancel_event.is_set():
                 if transcription_queue:
-                    transcription_queue.put({"type": "error", "data": "Transcripción cancelada."})
+                    transcription_queue.put(
+                        {"type": "error", "data": "Transcripción cancelada."}
+                    )
                 return ""
 
             # Combinar resultados ordenados
-            all_texts = [results_by_index[i][0] for i in range(num_chunks) if i in results_by_index and results_by_index[i][0]]
+            all_texts = [
+                results_by_index[i][0]
+                for i in range(num_chunks)
+                if i in results_by_index and results_by_index[i][0]
+            ]
             final_text = " ".join(all_texts)
 
             if transcription_queue:
-                transcription_queue.put({
-                    "type": "transcription_finished",
-                    "final_text": final_text,
-                    "real_time": time.time() - start_process_time
-                })
+                transcription_queue.put(
+                    {
+                        "type": "transcription_finished",
+                        "final_text": final_text,
+                        "real_time": time.time() - start_process_time,
+                    }
+                )
 
             return final_text
 
         except Exception as e:
-            if transcription_queue:
-                transcription_queue.put({"type": "error", "data": f"Error en chunks: {str(e)}"})
-            return ""
-
-        except Exception as e:
-            print(f"[ERROR] Error en procesamiento por chunks paralelo: {e}")
+            print(f"[ERROR] Error en procesamiento por chunks: {e}")
             import traceback
 
             traceback.print_exc()
@@ -989,7 +812,9 @@ class TranscriberEngine:
                 word_timestamps=False,
             )
 
-            chunk_text = " ".join([segment.text.strip() for segment in segments_generator])
+            chunk_text = " ".join(
+                [segment.text.strip() for segment in segments_generator]
+            )
             return chunk_text, None
 
         except Exception as e:
@@ -1193,10 +1018,13 @@ class TranscriberEngine:
                     )
                     # Ajustar el tiempo de inicio real para tener en cuenta el tiempo pausado.
                     try:
-                        has_rate = hasattr(current_processing_rate, "__float__") or isinstance(current_processing_rate, (int, float))
+                        has_rate = hasattr(
+                            current_processing_rate, "__float__"
+                        ) or isinstance(current_processing_rate, (int, float))
                         if has_rate and float(current_processing_rate) > 0:
                             start_real_time = time.time() - (
-                                processed_audio_duration_so_far / float(current_processing_rate)
+                                processed_audio_duration_so_far
+                                / float(current_processing_rate)
                             )
                         else:
                             start_real_time = time.time()
@@ -1208,7 +1036,10 @@ class TranscriberEngine:
                 elapsed_real_time = time.time() - start_real_time
                 # current_processing_rate inicializado antes del bucle
                 try:
-                    if isinstance(elapsed_real_time, (int, float)) and elapsed_real_time > 0:
+                    if (
+                        isinstance(elapsed_real_time, (int, float))
+                        and elapsed_real_time > 0
+                    ):
                         current_processing_rate = (
                             processed_audio_duration_so_far / elapsed_real_time
                         )
@@ -1216,13 +1047,15 @@ class TranscriberEngine:
                     pass
                 estimated_remaining_time = -1
                 try:
-                    has_rate = hasattr(current_processing_rate, "__float__") or isinstance(current_processing_rate, (int, float))
+                    has_rate = hasattr(
+                        current_processing_rate, "__float__"
+                    ) or isinstance(current_processing_rate, (int, float))
                     if has_rate and float(current_processing_rate) > 0:
                         remaining_audio_duration = (
                             total_duration - processed_audio_duration_so_far
                         )
-                        estimated_remaining_time = (
-                            remaining_audio_duration / float(current_processing_rate)
+                        estimated_remaining_time = remaining_audio_duration / float(
+                            current_processing_rate
                         )
                 except (ValueError, TypeError):
                     pass
@@ -1379,23 +1212,21 @@ class TranscriberEngine:
 
             end_time_transcription = time.time()
             transcription_duration = end_time_transcription - start_time_transcription
-            
+
             # Obtener el tiempo estimado inicial si está disponible
             # (Podemos guardarlo al inicio de la transcripción para compararlo al final)
-            
+
             print("Transcripción completa (en _perform_transcription).")
             transcription_queue.put(
                 {"type": "status_update", "data": "Procesamiento completado."}
             )
-            
+
             finish_data = {
                 "final_text": final_transcribed_text,
                 "real_time": transcription_duration,
             }
-            
-            transcription_queue.put(
-                {"type": "transcription_finished", **finish_data}
-            )
+
+            transcription_queue.put({"type": "transcription_finished", **finish_data})
 
             return ""
 
@@ -1444,311 +1275,20 @@ class TranscriberEngine:
                 )
 
     def save_transcription_txt(self, text: str, filepath: str):
-        """
-        Guarda el texto de la transcripción en un archivo de texto plano (.txt).
-
-        Args:
-            text (str): El contenido de texto de la transcripción a guardar.
-            filepath (str): La ruta completa donde se guardará el archivo TXT.
-
-        Raises:
-            IOError: Si ocurre un error durante la escritura del archivo (ej. permisos, disco lleno).
-            Exception: Captura y propaga cualquier otro error inesperado.
-        """
-        try:
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(text)
-            print(f"Transcripción guardada como TXT en: {filepath}")
-        except Exception as e:
-            print(f"Error al guardar TXT: {e}")
-            raise
+        return self.exporter.save_transcription_txt(text, filepath)
 
     def save_transcription_pdf(self, text: str, filepath: str):
-        """
-        Guarda el texto de la transcripción en un archivo PDF.
-
-        Utiliza la librería `fpdf` para generar un documento PDF con el texto proporcionado.
-        Maneja posibles errores de codificación Unicode intentando una codificación alternativa.
-
-        Args:
-            text (str): El contenido de texto de la transcripción a guardar en el PDF.
-            filepath (str): La ruta completa donde se guardará el archivo PDF.
-
-        Raises:
-            IOError: Si ocurre un error durante la escritura del archivo PDF.
-            Exception: Captura y propaga cualquier otro error inesperado durante la generación del PDF.
-        """
-        try:
-            pdf = FPDF()
-            pdf.add_page()
-            
-            # Intentar usar una fuente que soporte más caracteres si está disponible, 
-            # de lo contrario, sanitizar el texto para evitar errores de codificación.
-            pdf.set_font("Arial", size=12)
-            
-            # Sanitización del texto para evitar caracteres fuera del rango de Latin-1 (fuente estándar de FPDF)
-            # Reemplazamos elipsis Unicode y otros caracteres problemáticos comunes
-            safe_text = text.replace('\u2026', '...')
-            safe_text = safe_text.replace('\u201c', '"').replace('\u201d', '"')
-            safe_text = safe_text.replace('\u2018', "'").replace('\u2019', "'")
-            
-            try:
-                pdf.multi_cell(0, 10, txt=safe_text)
-            except UnicodeEncodeError:
-                # Si falla, forzar a Latin-1 con reemplazo
-                pdf.multi_cell(
-                    0, 10, txt=safe_text.encode("latin-1", "replace").decode("latin-1")
-                )
-            pdf.output(filepath)
-            print(f"Transcripción guardada como PDF en: {filepath}")
-        except Exception as e:
-            print(f"Error al guardar PDF: {e}")
-            raise
+        return self.exporter.save_transcription_pdf(text, filepath)
 
     def download_audio_from_youtube(self, youtube_url, output_dir=None):
         """
-        Descarga el audio de una URL de YouTube y lo convierte a formato WAV estándar (16kHz, mono).
-
-        Utiliza la librería `yt-dlp` para descargar el audio y FFmpeg (a través de
-        `_preprocess_audio_for_diarization`) para estandarizar el formato. Reporta
-        el progreso y los errores a través de la cola de la GUI.
-
-        Args:
-            youtube_url (str): La URL del video de YouTube del que se descargará el audio.
-            output_dir (str, optional): El directorio donde se guardará el archivo de audio
-                                        descargado y estandarizado. Si es `None`, se usa
-                                        el directorio temporal del sistema.
-
-        Returns:
-            str or None: La ruta completa al archivo WAV estandarizado descargado, o `None`
-                         si ocurre un error durante la descarga o el procesamiento.
-
-        Raises:
-            yt_dlp.utils.DownloadError: Si ocurre un error específico de descarga con yt-dlp.
-            RuntimeError: Si falla el preprocesamiento del audio descargado.
-            Exception: Captura y reporta cualquier otro error inesperado.
+        Descarga el audio de una URL de YouTube y lo convierte a formato WAV estándar.
         """
-        if not output_dir:
-            output_dir = tempfile.gettempdir()
-
-        # Paso 1: Descargar a WAV con yt-dlp (sin forzar -ar y -ac aquí)
-        temp_download_name_template = os.path.join(
-            output_dir, "%(title)s_%(id)s_temp_download"
-        )  # Sin extensión aún
-
-        # Obtener la ruta de FFmpeg (relativa al directorio del proyecto)
-        project_root = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        )
-        ffmpeg_path = os.path.join(project_root, "ffmpeg")
-
-        ydl_opts_download = {
-            "format": "bestaudio/best",
-            "postprocessors": [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "wav",
-                    # 'preferredquality': '192', # Opcional para WAV
-                }
-            ],
-            "outtmpl": temp_download_name_template,  # yt-dlp añadirá .wav
-            "noplaylist": True,
-            "quiet": False,  # Puedes ponerlo a True en producción
-            "progress_hooks": [lambda d: self._yt_dlp_progress_hook(d)],
-            "ffmpeg_location": ffmpeg_path,  # Ubicación del ejecutable FFmpeg
-        }
-
-        downloaded_wav_path_initial = None
-        info_dict = None  # Para obtener título e id
-
-        try:
-            self.gui_queue.put(
-                {
-                    "type": "status_update",
-                    "data": f"Descargando de YouTube: {youtube_url}",
-                }
-            )
-            with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
-                info_dict = ydl.extract_info(youtube_url, download=True)
-                # yt-dlp después de 'FFmpegExtractAudio' con 'preferredcodec': 'wav'
-                # debería haber creado un archivo con la extensión .wav.
-                # El nombre real puede variar. outtmpl es una plantilla.
-                # El nombre final se basa en la plantilla + .wav
-                # Ejemplo: "Mi Video_VIDEOID_temp_download.wav"
-                # Necesitamos construir el nombre real del archivo.
-                # Una forma es derivarlo de la información o buscarlo.
-
-                # Intenta construir el nombre esperado si 'filepath' no está en info_dict o es incorrecto
-                # Esta parte sigue siendo un poco delicada con yt-dlp
-                base_filename = ydl.prepare_filename(info_dict)
-                if base_filename.endswith(
-                    f".{info_dict['ext']}"
-                ):  # Si tiene la extensión original
-                    downloaded_wav_path_initial = base_filename.replace(
-                        f".{info_dict['ext']}", ".wav"
-                    )
-                elif os.path.exists(
-                    base_filename + ".wav"
-                ):  # Si outtmpl no tenía extensión
-                    downloaded_wav_path_initial = base_filename + ".wav"
-                elif os.path.exists(base_filename):  # Si ya tiene .wav por alguna razón
-                    downloaded_wav_path_initial = base_filename
-
-                # Si la suposición del nombre falla, intenta buscarlo
-                if not downloaded_wav_path_initial or not os.path.exists(
-                    downloaded_wav_path_initial
-                ):
-                    title = "".join(
-                        [
-                            c
-                            for c in info_dict.get("title", "untitled")
-                            if c.isalnum() or c in [" ", "_", "-"]
-                        ]
-                    ).strip()
-                    video_id = info_dict.get("id", "novideoid")
-                    # Busca un archivo que contenga el ID del video y termine en .wav
-                    # Esto es más robusto si la plantilla outtmpl es compleja
-                    possible_files = [
-                        f
-                        for f in os.listdir(output_dir)
-                        if video_id in f and f.lower().endswith(".wav")
-                    ]
-                    if possible_files:
-                        downloaded_wav_path_initial = os.path.join(
-                            output_dir, possible_files[0]
-                        )
-                    else:
-                        self.gui_queue.put(
-                            {
-                                "type": "error",
-                                "data": "No se pudo encontrar el archivo WAV descargado de YouTube.",
-                            }
-                        )
-                        return None
-
-                if not os.path.exists(downloaded_wav_path_initial):
-                    self.gui_queue.put(
-                        {
-                            "type": "error",
-                            "data": f"Archivo WAV descargado no encontrado en: {downloaded_wav_path_initial}",
-                        }
-                    )
-                    return None
-
-            self.gui_queue.put(
-                {
-                    "type": "status_update",
-                    "data": f"Descarga inicial completa: {os.path.basename(downloaded_wav_path_initial)}",
-                }
-            )
-            print(
-                f"[DEBUG] Audio de YouTube descargado (inicialmente) en: {downloaded_wav_path_initial}"
-            )
-
-            # Paso 2: Convertir el WAV descargado al formato deseado (16kHz, mono) si es necesario.
-            # Usamos un nuevo archivo temporal para la salida final estandarizada.
-            with tempfile.NamedTemporaryFile(
-                suffix=".wav", delete=False, dir=output_dir
-            ) as final_temp_f:
-                final_standardized_wav_path = final_temp_f.name
-
-            self.gui_queue.put(
-                {"type": "status_update", "data": "Estandarizando audio descargado..."}
-            )
-            try:
-                # Usamos el método de preprocesamiento que ya tienes para FFmpeg
-                self._preprocess_audio_for_diarization(
-                    downloaded_wav_path_initial, final_standardized_wav_path
-                )
-                print(
-                    f"[DEBUG] Audio de YouTube estandarizado a: {final_standardized_wav_path}"
-                )
-
-                # Borrar el archivo WAV inicial descargado por yt-dlp si es diferente al estandarizado
-                if (
-                    downloaded_wav_path_initial != final_standardized_wav_path
-                    and os.path.exists(downloaded_wav_path_initial)
-                ):
-                    try:
-                        os.remove(downloaded_wav_path_initial)
-                        print(
-                            f"[DEBUG] Archivo WAV intermedio de YouTube {downloaded_wav_path_initial} eliminado."
-                        )
-                    except Exception as e_remove_initial:
-                        print(
-                            f"[WARNING] No se pudo eliminar el WAV intermedio {downloaded_wav_path_initial}: {e_remove_initial}"
-                        )
-
-                return final_standardized_wav_path  # Devolver la ruta al archivo WAV final (16kHz, mono)
-
-            except RuntimeError as e_std:
-                self.gui_queue.put(
-                    {
-                        "type": "error",
-                        "data": f"Fallo al estandarizar audio de YouTube: {e_std}",
-                    }
-                )
-                # Limpiar ambos archivos si existen
-                if os.path.exists(downloaded_wav_path_initial):
-                    os.remove(downloaded_wav_path_initial)
-                if os.path.exists(final_standardized_wav_path):
-                    os.remove(final_standardized_wav_path)
-                return None
-
-        except yt_dlp.utils.DownloadError as e_yt:
-            self.gui_queue.put(
-                {"type": "error", "data": f"Error al descargar de YouTube: {str(e_yt)}"}
-            )
-            return None
-        except Exception as e_generic:
-            self.gui_queue.put(
-                {
-                    "type": "error",
-                    "data": f"Error inesperado en descarga de YouTube: {str(e_generic)}",
-                }
-            )
-            import traceback
-
-            traceback.print_exc()
-            return None
+        self.audio_handler.gui_queue = self.gui_queue
+        return self.audio_handler.download_audio_from_youtube(youtube_url, output_dir)
 
     def _yt_dlp_progress_hook(self, d):
-        """Hook para el progreso de descarga de yt-dlp."""
-        if d["status"] == "downloading":
-            filename = d.get("filename", "")
-            total_bytes = d.get("total_bytes") or d.get("total_bytes_estimate")
-            downloaded_bytes = d.get("downloaded_bytes")
-            speed = d.get("speed")
-            eta = d.get("eta")
-
-            if total_bytes and downloaded_bytes:
-                progress_percent = (downloaded_bytes / total_bytes) * 100
-                # Enviar progreso a la GUI (quizás a una barra de progreso específica para descarga)
-                # print(f"Descargando {filename}: {progress_percent:.2f}% a {speed} B/s, ETA: {eta}s")
-                self.gui_queue.put(
-                    {
-                        "type": "download_progress",
-                        "data": {
-                            "percentage": progress_percent,
-                            "filename": os.path.basename(filename),
-                            "speed": speed,
-                            "eta": eta,
-                        },
-                    }
-                )
-        elif d["status"] == "finished":
-            filename = d.get("filename", "")
-            print(
-                f"Descarga de {filename} finalizada, iniciando postprocesamiento (si aplica)..."
-            )
-            self.gui_queue.put(
-                {
-                    "type": "status_update",
-                    "data": f"Procesando audio de {os.path.basename(filename)}...",
-                }
-            )  # Usar status_update
-        elif d["status"] == "error":
-            print(f"Error durante el hook de yt-dlp: {d.get('error')}")
+        return self.audio_handler._yt_dlp_progress_hook(d)
 
     def transcribe_youtube_audio_threaded(
         self,

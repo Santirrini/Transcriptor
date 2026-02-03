@@ -21,6 +21,13 @@ sys.path.insert(0, project_root)
 from src.core.transcriber_engine import TranscriberEngine
 from src.gui.theme import theme_manager
 from src.gui.utils.tooltips import add_tooltip
+from src.gui.components.header import Header
+from src.gui.components.tabs import Tabs
+from src.gui.components.progress_section import ProgressSection
+from src.gui.components.fragments_section import FragmentsSection
+from src.gui.components.transcription_area import TranscriptionArea
+from src.gui.components.action_buttons import ActionButtons
+from src.gui.components.footer import Footer
 
 
 class MainWindow(ctk.CTk):
@@ -135,14 +142,24 @@ class MainWindow(ctk.CTk):
             self.main_container.configure(fg_color=self._get_color("background"))
 
         # Actualizar theme_switch text
-        if hasattr(self, "theme_switch"):
-            is_dark = mode == "dark"
-            self.theme_switch.configure(text="🌙 Oscuro" if is_dark else "☀️ Claro")
-            self.theme_var.set(is_dark)
+        if hasattr(self, "header"):
+            self.header.apply_theme()
+        if hasattr(self, "tabs"):
+            self.tabs.apply_theme()
+        if hasattr(self, "progress_section"):
+            self.progress_section.apply_theme()
+        if hasattr(self, "fragments_section"):
+            self.fragments_section.apply_theme()
+        if hasattr(self, "transcription_area"):
+            self.transcription_area.apply_theme()
+        if hasattr(self, "action_buttons"):
+            self.action_buttons.apply_theme()
+        if hasattr(self, "footer"):
+            self.footer.apply_theme()
 
     def _create_ui(self):
-        """Crea toda la interfaz de usuario moderna."""
-        # Frame principal container con espaciado de 24px
+        """Crea toda la interfaz de usuario moderna mediante componentes."""
+        # Frame principal container
         self.main_container = ctk.CTkFrame(
             self, fg_color=self._get_color("background"), corner_radius=0
         )
@@ -150,823 +167,63 @@ class MainWindow(ctk.CTk):
         self.main_container.grid_columnconfigure(0, weight=1)
         self.main_container.grid_rowconfigure(2, weight=1)
 
-        # Header moderno
-        self._create_header()
-
-        # Contenido principal con scroll
-        self._create_content_area()
-
-        # Footer con botones de acción
-        self._create_footer()
-
-    def _create_header(self):
-        """Crea el header moderno con título y controles."""
-        spacing = self._get_spacing("2xl")  # 24px
-
-        header = ctk.CTkFrame(
-            self.main_container,
-            fg_color=self._get_color("surface"),
-            corner_radius=0,
-            height=100,
+        # Header
+        self.header = Header(
+            self.main_container, theme_manager, self.ui_mode, self.theme_var,
+            self._toggle_theme, self._on_mode_change
         )
-        header.grid(row=0, column=0, sticky="ew")
-        header.grid_columnconfigure(0, weight=1)
-        header.grid_propagate(True)
-
-        # Inner container con padding
-        inner = ctk.CTkFrame(header, fg_color="transparent")
-        inner.grid(row=0, column=0, sticky="nsew", padx=spacing, pady=spacing)
-        inner.grid_columnconfigure(0, weight=1)
-
-        # Left side: Título y subtítulo
-        title_frame = ctk.CTkFrame(inner, fg_color="transparent")
-        title_frame.grid(row=0, column=0, sticky="w")
-
-        title = ctk.CTkLabel(
-            title_frame,
-            text="DesktopWhisperTranscriber",
-            font=("Segoe UI", 24, "bold"),
-            text_color=self._get_color("text"),
-        )
-        title.grid(row=0, column=0, sticky="w")
-
-        subtitle = ctk.CTkLabel(
-            title_frame,
-            text="Transcripción de audio con IA",
-            font=("Segoe UI", 13),
-            text_color=self._get_color("text_secondary"),
-        )
-        subtitle.grid(row=1, column=0, sticky="w", pady=(2, 0))
-
-        # Right side: Modo switch
-        mode_container = ctk.CTkFrame(inner, fg_color="transparent")
-        mode_container.grid(row=0, column=1, sticky="e")
-
-        mode_label = ctk.CTkLabel(
-            mode_container,
-            text="Modo:",
-            font=("Segoe UI", 12),
-            text_color=self._get_color("text_secondary"),
-        )
-        mode_label.pack(side="left", padx=(0, 8))
-
-        # Theme Toggle
-        self.theme_switch = ctk.CTkSwitch(
-            mode_container,
-            text="🌙 Oscuro" if self.theme_var.get() else "☀️ Claro",
-            command=self._toggle_theme,
-            font=("Segoe UI", 12),
-            variable=self.theme_var,
-        )
-        self.theme_switch.pack(side="left", padx=(0, 16))
-
-        self.mode_switch = ctk.CTkSegmentedButton(
-            mode_container,
-            values=["Simple", "Avanzado"],
-            variable=self.ui_mode,
-            command=self._on_mode_change,
-            font=("Segoe UI", 12),
-            height=36,
-            width=180,
-            selected_color=self._get_color("primary"),
-            selected_hover_color=self._get_color("primary_hover"),
-            unselected_color=self._get_color("surface_elevated"),
-            unselected_hover_color=self._get_color("border_hover"),
-            text_color=self._get_color("text"),
-            text_color_disabled=self._get_color("text_muted"),
-        )
-        self.mode_switch.pack(side="left")
+        self.header.grid(row=0, column=0, sticky="ew")
 
         # Separator line
-        separator = ctk.CTkFrame(
+        self.separator = ctk.CTkFrame(
             self.main_container, fg_color=self._get_color("border"), height=1
         )
-        separator.grid(row=1, column=0, sticky="ew")
+        self.separator.grid(row=1, column=0, sticky="ew")
 
-    def _create_content_area(self):
-        """Crea el área de contenido principal."""
-        spacing = self._get_spacing("2xl")  # 24px
-
-        # Scrollable frame para todo el contenido
+        # Contenido principal con scroll
+        spacing = self._get_spacing("2xl")
         self.content_scroll = ctk.CTkScrollableFrame(
             self.main_container,
             fg_color=self._get_color("background"),
             scrollbar_button_color=self._get_color("border"),
             scrollbar_button_hover_color=self._get_color("border_hover"),
         )
-        self.content_scroll.grid(
-            row=2, column=0, sticky="nsew", padx=spacing, pady=spacing
-        )
+        self.content_scroll.grid(row=2, column=0, sticky="nsew", padx=spacing, pady=spacing)
         self.content_scroll.grid_columnconfigure(0, weight=1)
 
-        # === Tabs Section ===
-        self._create_tabs_section()
-
-        # === Progress Section ===
-        self._create_progress_section()
-
-        # === Fragments Section ===
-        self._create_fragments_section()
-
-        # === Transcription Area ===
-        self._create_transcription_area()
-
-        # === Action Buttons ===
-        self._create_action_buttons()
-
-    def _create_tabs_section(self):
-        """Crea la sección de tabs."""
-        radius = self._get_border_radius("xl")  # 12px
-
-        # Card container para tabs
-        tabs_card = ctk.CTkFrame(
-            self.content_scroll,
-            fg_color=self._get_color("surface"),
-            corner_radius=radius,
-            border_width=1,
-            border_color=self._get_color("border"),
+        # Componentes del área de contenido
+        self.tabs = Tabs(
+            self.content_scroll, theme_manager,
+            self.language_var, self.model_var, self.beam_size_var,
+            self.use_vad_var, self.perform_diarization_var,
+            self.live_transcription_var, self.parallel_processing_var,
+            self.select_audio_file, self.start_youtube_transcription_thread,
+            self._on_tab_change, self._validate_youtube_input
         )
-        tabs_card.grid(row=0, column=0, sticky="ew", pady=(0, 16))
-        tabs_card.grid_columnconfigure(0, weight=1)
+        self.tabs.grid(row=0, column=0, sticky="ew", pady=(0, 16))
 
-        # Tabs modernos
-        self.input_tabs = ctk.CTkTabview(
-            tabs_card,
-            height=280,
-            corner_radius=radius - 2,
-            fg_color=self._get_color("surface"),
-            segmented_button_fg_color=self._get_color("surface_elevated"),
-            segmented_button_selected_color=self._get_color("surface"),
-            segmented_button_selected_hover_color=self._get_color("surface"),
-            segmented_button_unselected_color=self._get_color("surface_elevated"),
-            segmented_button_unselected_hover_color=self._get_color("surface_elevated"),
-            text_color=self._get_color("text_secondary"),
-            text_color_disabled=self._get_color("text_muted"),
-            command=self._on_tab_change,
+        self.progress_section = ProgressSection(self.content_scroll, theme_manager)
+        self.progress_section.grid(row=1, column=0, sticky="ew", pady=(0, 16))
+
+        self.fragments_section = FragmentsSection(self.content_scroll, theme_manager)
+        self.fragments_section.grid(row=2, column=0, sticky="ew", pady=(0, 16))
+
+        self.transcription_area = TranscriptionArea(self.content_scroll, theme_manager)
+        self.transcription_area.grid(row=3, column=0, sticky="nsew", pady=(0, 16))
+
+        self.action_buttons = ActionButtons(
+            self.content_scroll, theme_manager,
+            self.save_transcription_txt, self.save_transcription_pdf
         )
-        self.input_tabs.grid(row=0, column=0, padx=16, pady=16, sticky="nsew")
+        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 24))
 
-        # Crear tabs
-        self._create_file_tab()
-        self._create_youtube_tab()
-        self._create_config_tab()
-
-        # Seleccionar tab por defecto
-        self.input_tabs.set("    Archivo Local    ")
-
-    def _create_file_tab(self):
-        """Crea el tab de archivo local."""
-        tab = self.input_tabs.add("    Archivo Local    ")
-        tab.grid_columnconfigure(0, weight=1)
-
-        # Contenedor con padding
-        container = ctk.CTkFrame(tab, fg_color="transparent")
-        container.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
-        container.grid_columnconfigure(0, weight=1)
-
-        # Label de instrucción
-        instruction = ctk.CTkLabel(
-            container,
-            text="Selecciona un archivo de audio para transcribir",
-            font=("Segoe UI", 14),
-            text_color=self._get_color("text_secondary"),
+        # Footer fijo
+        self.footer = Footer(
+            self.main_container, theme_manager,
+            self.start_transcription, self.toggle_pause_transcription, self.reset_process
         )
-        instruction.grid(row=0, column=0, sticky="w", pady=(0, 16))
+        self.footer.grid(row=3, column=0, sticky="ew")
 
-        # Frame de selección de archivo con border-radius 12px
-        file_frame = ctk.CTkFrame(
-            container,
-            fg_color=self._get_color("background"),
-            corner_radius=12,
-            border_width=1,
-            border_color=self._get_color("border"),
-        )
-        file_frame.grid(row=1, column=0, sticky="ew", pady=(0, 12))
-        file_frame.grid_columnconfigure(0, weight=1)
-
-        self.file_label = ctk.CTkLabel(
-            file_frame,
-            text="Ningún archivo seleccionado",
-            font=("Segoe UI", 13),
-            text_color=self._get_color("text_muted"),
-            anchor="w",
-        )
-        self.file_label.grid(row=0, column=0, padx=16, pady=16, sticky="w")
-
-        # Botón de selección
-        self.select_file_button = ctk.CTkButton(
-            file_frame,
-            text="Seleccionar archivo",
-            font=("Segoe UI", 13, "bold"),
-            height=40,
-            width=160,
-            fg_color=self._get_color("primary"),
-            hover_color=self._get_color("primary_hover"),
-            text_color="white",
-            corner_radius=10,
-            command=self.select_audio_file,
-        )
-        self.select_file_button.grid(row=0, column=1, padx=16, pady=12)
-
-        # Formatos soportados
-        formats_label = ctk.CTkLabel(
-            container,
-            text="Formatos soportados: MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA",
-            font=("Segoe UI", 11),
-            text_color=self._get_color("text_muted"),
-        )
-        formats_label.grid(row=2, column=0, sticky="w")
-
-    def _create_youtube_tab(self):
-        """Crea el tab de YouTube."""
-        tab = self.input_tabs.add("    YouTube    ")
-        tab.grid_columnconfigure(0, weight=1)
-
-        # Contenedor
-        container = ctk.CTkFrame(tab, fg_color="transparent")
-        container.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
-        container.grid_columnconfigure(0, weight=1)
-
-        # Label de instrucción
-        instruction = ctk.CTkLabel(
-            container,
-            text="Introduce la URL de un video de YouTube",
-            font=("Segoe UI", 14),
-            text_color=self._get_color("text_secondary"),
-        )
-        instruction.grid(row=0, column=0, sticky="w", pady=(0, 16))
-
-        # Frame de URL con border-radius 12px
-        url_frame = ctk.CTkFrame(
-            container,
-            fg_color=self._get_color("background"),
-            corner_radius=12,
-            border_width=1,
-            border_color=self._get_color("border"),
-        )
-        url_frame.grid(row=1, column=0, sticky="ew", pady=(0, 16))
-        url_frame.grid_columnconfigure(0, weight=1)
-
-        # Entry de URL
-        self.youtube_url_entry = ctk.CTkEntry(
-            url_frame,
-            placeholder_text="https://www.youtube.com/watch?v=...",
-            font=("Segoe UI", 13),
-            height=44,
-            fg_color="transparent",
-            border_width=0,
-            text_color=self._get_color("text"),
-        )
-        self.youtube_url_entry.grid(row=0, column=0, padx=16, pady=12, sticky="ew")
-        self.youtube_url_entry.bind("<KeyRelease>", self._validate_youtube_input)
-
-        # Botón de descargar
-        self.transcribe_youtube_button = ctk.CTkButton(
-            url_frame,
-            text="Descargar y Transcribir",
-            font=("Segoe UI", 13, "bold"),
-            height=40,
-            width=200,
-            fg_color=self._get_color("secondary"),
-            hover_color=self._get_color("secondary_hover"),
-            text_color="white",
-            corner_radius=10,
-            command=self.start_youtube_transcription_thread,
-            state="disabled",
-        )
-        self.transcribe_youtube_button.grid(row=0, column=1, padx=16, pady=12)
-
-        # Info adicional
-        info_label = ctk.CTkLabel(
-            container,
-            text="El audio se descargará automáticamente y se transcribirá",
-            font=("Segoe UI", 11),
-            text_color=self._get_color("text_muted"),
-        )
-        info_label.grid(row=2, column=0, sticky="w")
-
-    def _create_config_tab(self):
-        """Crea el tab de configuración."""
-        tab = self.input_tabs.add("    Configuración    ")
-        tab.grid_columnconfigure(0, weight=1)
-
-        # Scrollable frame para contenido
-        scroll = ctk.CTkScrollableFrame(tab, fg_color="transparent", height=220)
-        scroll.grid(row=0, column=0, padx=16, pady=16, sticky="nsew")
-        scroll.grid_columnconfigure((0, 1), weight=1)
-
-        # Configuración básica
-        basic_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        basic_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 16))
-        basic_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
-
-        # Idioma
-        lang_container = ctk.CTkFrame(basic_frame, fg_color="transparent")
-        lang_container.grid(row=0, column=0, padx=8, pady=8, sticky="w")
-
-        ctk.CTkLabel(
-            lang_container,
-            text="Idioma",
-            font=("Segoe UI", 12),
-            text_color=self._get_color("text_secondary"),
-        ).pack(anchor="w")
-
-        self.language_optionmenu = ctk.CTkOptionMenu(
-            lang_container,
-            values=[
-                "Español (es)",
-                "Inglés (en)",
-                "Francés (fr)",
-                "Alemán (de)",
-                "Italiano (it)",
-                "Portugués (pt)",
-            ],
-            variable=self.language_var,
-            font=("Segoe UI", 13),
-            height=40,
-            width=180,
-            fg_color=self._get_color("surface_elevated"),
-            button_color=self._get_color("primary"),
-            button_hover_color=self._get_color("primary_hover"),
-            text_color=self._get_color("text"),
-            dropdown_fg_color=self._get_color("surface"),
-            dropdown_hover_color=self._get_color("surface_elevated"),
-            dropdown_text_color=self._get_color("text"),
-        )
-        self.language_optionmenu.pack(anchor="w", pady=(4, 0))
-
-        # Modelo
-        model_container = ctk.CTkFrame(basic_frame, fg_color="transparent")
-        model_container.grid(row=0, column=1, padx=8, pady=8, sticky="w")
-
-        ctk.CTkLabel(
-            model_container,
-            text="Modelo Whisper",
-            font=("Segoe UI", 12),
-            text_color=self._get_color("text_secondary"),
-        ).pack(anchor="w")
-
-        self.model_select_combo = ctk.CTkComboBox(
-            model_container,
-            values=[
-                "tiny",
-                "base",
-                "small",
-                "medium",
-                "large-v1",
-                "large-v2",
-                "large-v3",
-            ],
-            variable=self.model_var,
-            font=("Segoe UI", 13),
-            height=40,
-            width=180,
-            fg_color=self._get_color("surface_elevated"),
-            border_color=self._get_color("border"),
-            text_color=self._get_color("text"),
-            dropdown_fg_color=self._get_color("surface"),
-            dropdown_hover_color=self._get_color("surface_elevated"),
-            dropdown_text_color=self._get_color("text"),
-        )
-        self.model_select_combo.pack(anchor="w", pady=(4, 0))
-
-        # Opciones avanzadas (inicialmente ocultas)
-        self.advanced_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        self.advanced_frame.grid(row=1, column=0, columnspan=2, sticky="ew")
-        self.advanced_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
-        self.advanced_frame.grid_remove()
-
-        # Beam Size
-        beam_container = ctk.CTkFrame(self.advanced_frame, fg_color="transparent")
-        beam_container.grid(row=0, column=0, padx=8, pady=8, sticky="w")
-
-        ctk.CTkLabel(
-            beam_container,
-            text="Beam Size",
-            font=("Segoe UI", 12),
-            text_color=self._get_color("text_secondary"),
-        ).pack(anchor="w")
-
-        self.beam_size_combo = ctk.CTkComboBox(
-            beam_container,
-            values=["1", "3", "5", "10", "15"],
-            variable=self.beam_size_var,
-            font=("Segoe UI", 13),
-            height=40,
-            width=120,
-            fg_color=self._get_color("surface_elevated"),
-            border_color=self._get_color("border"),
-            text_color=self._get_color("text"),
-        )
-        self.beam_size_combo.pack(anchor="w", pady=(4, 0))
-
-        # Checkboxes en grid
-        checkbox_frame = ctk.CTkFrame(self.advanced_frame, fg_color="transparent")
-        checkbox_frame.grid(row=0, column=1, columnspan=3, padx=8, pady=8, sticky="ew")
-        checkbox_frame.grid_columnconfigure((0, 1), weight=1)
-
-        self.vad_checkbox = ctk.CTkCheckBox(
-            checkbox_frame,
-            text="Usar VAD",
-            variable=self.use_vad_var,
-            font=("Segoe UI", 12),
-            checkbox_width=22,
-            checkbox_height=22,
-            fg_color=self._get_color("primary"),
-            hover_color=self._get_color("primary_hover"),
-            border_color=self._get_color("border"),
-            text_color=self._get_color("text"),
-        )
-        self.vad_checkbox.grid(row=0, column=0, padx=8, pady=6, sticky="w")
-        add_tooltip(
-            self.vad_checkbox,
-            "Voice Activity Detection - Detecta y filtra silencios",
-            400,
-        )
-
-        self.diarization_checkbox = ctk.CTkCheckBox(
-            checkbox_frame,
-            text="Identificar hablantes",
-            variable=self.perform_diarization_var,
-            font=("Segoe UI", 12),
-            checkbox_width=22,
-            checkbox_height=22,
-            fg_color=self._get_color("primary"),
-            hover_color=self._get_color("primary_hover"),
-            border_color=self._get_color("border"),
-            text_color=self._get_color("text"),
-        )
-        self.diarization_checkbox.grid(row=0, column=1, padx=8, pady=6, sticky="w")
-        add_tooltip(
-            self.diarization_checkbox,
-            "Identifica diferentes hablantes en la transcripción",
-            400,
-        )
-
-        self.live_checkbox = ctk.CTkCheckBox(
-            checkbox_frame,
-            text="Transcripción en vivo",
-            variable=self.live_transcription_var,
-            font=("Segoe UI", 12),
-            checkbox_width=22,
-            checkbox_height=22,
-            fg_color=self._get_color("primary"),
-            hover_color=self._get_color("primary_hover"),
-            border_color=self._get_color("border"),
-            text_color=self._get_color("text"),
-        )
-        self.live_checkbox.grid(row=1, column=0, padx=8, pady=6, sticky="w")
-        add_tooltip(
-            self.live_checkbox,
-            "Muestra el texto en tiempo real durante la transcripción",
-            400,
-        )
-
-        self.parallel_checkbox = ctk.CTkCheckBox(
-            checkbox_frame,
-            text="Procesamiento paralelo",
-            variable=self.parallel_processing_var,
-            font=("Segoe UI", 12),
-            checkbox_width=22,
-            checkbox_height=22,
-            fg_color=self._get_color("primary"),
-            hover_color=self._get_color("primary_hover"),
-            border_color=self._get_color("border"),
-            text_color=self._get_color("text"),
-        )
-        self.parallel_checkbox.grid(row=1, column=1, padx=8, pady=6, sticky="w")
-        add_tooltip(
-            self.parallel_checkbox,
-            "Usa múltiples núcleos para procesamiento más rápido",
-            400,
-        )
-
-    def _create_progress_section(self):
-        """Crea la sección de progreso con barra y estadísticas."""
-        radius = self._get_border_radius("xl")  # 12px
-
-        # Card container para progreso
-        progress_card = ctk.CTkFrame(
-            self.content_scroll,
-            fg_color=self._get_color("surface"),
-            corner_radius=radius,
-            border_width=1,
-            border_color=self._get_color("border"),
-        )
-        progress_card.grid(row=1, column=0, sticky="ew", pady=(0, 16))
-        progress_card.grid_columnconfigure(0, weight=1)
-
-        # Contenedor interno
-        inner = ctk.CTkFrame(progress_card, fg_color="transparent")
-        inner.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
-        inner.grid_columnconfigure(0, weight=1)
-
-        # Header del progreso
-        header = ctk.CTkFrame(inner, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 12))
-        header.grid_columnconfigure(1, weight=1)
-
-        self.status_label = ctk.CTkLabel(
-            header,
-            text="Listo para transcribir",
-            font=("Segoe UI", 14, "bold"),
-            text_color=self._get_color("text"),
-        )
-        self.status_label.grid(row=0, column=0, sticky="w")
-
-        self.stats_label = ctk.CTkLabel(
-            header,
-            text="",
-            font=("Segoe UI", 12),
-            text_color=self._get_color("text_secondary"),
-        )
-        self.stats_label.grid(row=0, column=1, sticky="e")
-
-        # Barra de progreso
-        self.progress_bar = ctk.CTkProgressBar(
-            inner,
-            height=8,
-            corner_radius=4,
-            fg_color=self._get_color("border_light"),
-            progress_color=self._get_color("primary"),
-        )
-        self.progress_bar.grid(row=1, column=0, sticky="ew", pady=(0, 8))
-        self.progress_bar.set(0)
-
-        # Label de porcentaje
-        self.progress_label = ctk.CTkLabel(
-            inner,
-            text="0%",
-            font=("Segoe UI", 12, "bold"),
-            text_color=self._get_color("primary"),
-        )
-        self.progress_label.grid(row=2, column=0, sticky="w")
-
-    def _create_fragments_section(self):
-        """Crea la sección de fragmentos con scroll horizontal."""
-        radius = self._get_border_radius("xl")  # 12px
-
-        # Card container para fragmentos
-        fragments_card = ctk.CTkFrame(
-            self.content_scroll,
-            fg_color=self._get_color("surface"),
-            corner_radius=radius,
-            border_width=1,
-            border_color=self._get_color("border"),
-            height=120,
-        )
-        fragments_card.grid(row=2, column=0, sticky="ew", pady=(0, 16))
-        fragments_card.grid_columnconfigure(0, weight=1)
-        fragments_card.grid_propagate(False)
-
-        # Header
-        header = ctk.CTkFrame(fragments_card, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", padx=16, pady=(12, 8))
-
-        ctk.CTkLabel(
-            header,
-            text="Fragmentos",
-            font=("Segoe UI", 13, "bold"),
-            text_color=self._get_color("text_secondary"),
-        ).pack(side="left")
-
-        self.fragments_count_label = ctk.CTkLabel(
-            header,
-            text="0 fragmentos",
-            font=("Segoe UI", 11),
-            text_color=self._get_color("text_muted"),
-        )
-        self.fragments_count_label.pack(side="right")
-
-        # Scrollable frame horizontal para botones de fragmentos
-        self.fragments_container = ctk.CTkFrame(
-            fragments_card, fg_color="transparent", height=60
-        )
-        self.fragments_container.grid(
-            row=1, column=0, sticky="nsew", padx=12, pady=(0, 12)
-        )
-        self.fragments_container.grid_columnconfigure(0, weight=1)
-
-        # Canvas para scroll horizontal
-        self.fragments_canvas = tk.Canvas(
-            self.fragments_container,
-            bg=self._get_hex_color("surface"),
-            highlightthickness=0,
-            height=56,
-        )
-        self.fragments_canvas.grid(row=0, column=0, sticky="nsew")
-
-        # Frame interior para botones
-        self.fragments_inner = ctk.CTkFrame(
-            self.fragments_canvas, fg_color="transparent", height=50
-        )
-
-        self.fragments_window = self.fragments_canvas.create_window(
-            (0, 0), window=self.fragments_inner, anchor="nw", height=50
-        )
-
-        # Scrollbar horizontal
-        self.fragments_scrollbar = ctk.CTkScrollbar(
-            self.fragments_container,
-            orientation="horizontal",
-            command=self.fragments_canvas.xview,
-            fg_color=self._get_color("border_light"),
-            button_color=self._get_color("border"),
-            button_hover_color=self._get_color("border_hover"),
-        )
-        self.fragments_scrollbar.grid(row=1, column=0, sticky="ew")
-
-        self.fragments_canvas.configure(xscrollcommand=self.fragments_scrollbar.set)
-
-        # Bind para ajustar tamaño
-        self.fragments_inner.bind("<Configure>", self._on_fragments_configure)
-
-    def _on_fragments_configure(self, event=None):
-        """Ajusta el scroll region cuando cambian los fragmentos."""
-        self.fragments_canvas.configure(scrollregion=self.fragments_canvas.bbox("all"))
-
-    def _create_transcription_area(self):
-        """Crea el área de transcripción con textbox grande."""
-        radius = self._get_border_radius("xl")  # 12px
-
-        # Card container para transcripción
-        transcription_card = ctk.CTkFrame(
-            self.content_scroll,
-            fg_color=self._get_color("surface"),
-            corner_radius=radius,
-            border_width=1,
-            border_color=self._get_color("border"),
-        )
-        transcription_card.grid(row=3, column=0, sticky="nsew", pady=(0, 16))
-        transcription_card.grid_columnconfigure(0, weight=1)
-        transcription_card.grid_rowconfigure(1, weight=1)
-
-        # Header
-        header = ctk.CTkFrame(transcription_card, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", padx=16, pady=12)
-
-        ctk.CTkLabel(
-            header,
-            text="Transcripción",
-            font=("Segoe UI", 14, "bold"),
-            text_color=self._get_color("text"),
-        ).pack(side="left")
-
-        self.word_count_label = ctk.CTkLabel(
-            header,
-            text="0 palabras",
-            font=("Segoe UI", 11),
-            text_color=self._get_color("text_muted"),
-        )
-        self.word_count_label.pack(side="right")
-
-        # Textbox grande para transcripción
-        self.transcription_textbox = ctk.CTkTextbox(
-            transcription_card,
-            height=200,
-            font=("Segoe UI", 13),
-            fg_color=self._get_color("background"),
-            text_color=self._get_hex_color("text"),
-            border_width=1,
-            border_color=self._get_color("border"),
-            corner_radius=radius - 2,
-            wrap="word",
-            activate_scrollbars=True,
-            scrollbar_button_color=self._get_color("border"),
-            scrollbar_button_hover_color=self._get_color("border_hover"),
-        )
-        self.transcription_textbox.grid(
-            row=1, column=0, padx=16, pady=(0, 16), sticky="nsew"
-        )
-
-    def _create_action_buttons(self):
-        """Crea los botones de acción (Copiar, Guardar TXT, Guardar PDF)."""
-        # Frame para botones
-        actions_frame = ctk.CTkFrame(self.content_scroll, fg_color="transparent")
-        actions_frame.grid(row=4, column=0, sticky="ew", pady=(0, 16))
-
-        # Botón Copiar
-        self.copy_button = ctk.CTkButton(
-            actions_frame,
-            text="📋 Copiar",
-            font=("Segoe UI", 12, "bold"),
-            height=40,
-            width=120,
-            fg_color=self._get_color("surface_elevated"),
-            hover_color=self._get_color("border_hover"),
-            text_color=self._get_color("text"),
-            border_width=1,
-            border_color=self._get_color("border"),
-            corner_radius=10,
-            command=self.copy_transcription,
-        )
-        self.copy_button.pack(side="left", padx=(0, 8))
-
-        # Botón Guardar TXT
-        self.save_txt_button = ctk.CTkButton(
-            actions_frame,
-            text="📝 Guardar TXT",
-            font=("Segoe UI", 12, "bold"),
-            height=40,
-            width=140,
-            fg_color=self._get_color("surface_elevated"),
-            hover_color=self._get_color("border_hover"),
-            text_color=self._get_color("text"),
-            border_width=1,
-            border_color=self._get_color("border"),
-            corner_radius=10,
-            command=self.save_transcription_txt,
-        )
-        self.save_txt_button.pack(side="left", padx=8)
-
-        # Botón Guardar PDF
-        self.save_pdf_button = ctk.CTkButton(
-            actions_frame,
-            text="📄 Guardar PDF",
-            font=("Segoe UI", 12, "bold"),
-            height=40,
-            width=140,
-            fg_color=self._get_color("surface_elevated"),
-            hover_color=self._get_color("border_hover"),
-            text_color=self._get_color("text"),
-            border_width=1,
-            border_color=self._get_color("border"),
-            corner_radius=10,
-            command=self.save_transcription_pdf,
-        )
-        self.save_pdf_button.pack(side="left", padx=8)
-
-    def _create_footer(self):
-        """Crea el footer con controles de transcripción."""
-        spacing = self._get_spacing("2xl")  # 24px
-
-        footer = ctk.CTkFrame(
-            self.main_container,
-            fg_color=self._get_color("surface"),
-            corner_radius=0,
-            height=100,
-        )
-        footer.grid(row=3, column=0, sticky="ew")
-        footer.grid_columnconfigure(1, weight=1)
-        footer.grid_propagate(True)
-
-        # Inner container
-        inner = ctk.CTkFrame(footer, fg_color="transparent")
-        inner.grid(row=0, column=0, sticky="nsew", padx=spacing, pady=spacing)
-        inner.grid_columnconfigure(1, weight=1)
-
-        # Botones de control izquierda
-        left_controls = ctk.CTkFrame(inner, fg_color="transparent")
-        left_controls.grid(row=0, column=0, sticky="w")
-
-        self.reset_button = ctk.CTkButton(
-            left_controls,
-            text="🔄 Reiniciar",
-            font=("Segoe UI", 13, "bold"),
-            height=44,
-            width=130,
-            fg_color="transparent",
-            hover_color=self._get_color("surface_elevated"),
-            text_color=self._get_color("text_secondary"),
-            border_width=1,
-            border_color=self._get_color("border"),
-            corner_radius=10,
-            command=self.reset_process,
-        )
-        self.reset_button.pack(side="left", padx=(0, 8))
-
-        self.pause_button = ctk.CTkButton(
-            left_controls,
-            text="⏸ Pausar",
-            font=("Segoe UI", 13, "bold"),
-            height=44,
-            width=130,
-            fg_color=self._get_color("warning_light"),
-            hover_color=self._get_color("warning"),
-            text_color=self._get_color("text"),
-            corner_radius=10,
-            command=self.toggle_pause_transcription,
-            state="disabled",
-        )
-        self.pause_button.pack(side="left", padx=8)
-
-        # Botón principal derecha
-        right_controls = ctk.CTkFrame(inner, fg_color="transparent")
-        right_controls.grid(row=0, column=2, sticky="e")
-
-        self.start_transcription_button = ctk.CTkButton(
-            right_controls,
-            text="▶ Iniciar Transcripción",
-            font=("Segoe UI", 14, "bold"),
-            height=48,
-            width=220,
-            fg_color=self._get_color("primary"),
-            hover_color=self._get_color("primary_hover"),
-            text_color="white",
-            corner_radius=12,
-            command=self.start_transcription,
-        )
-        self.start_transcription_button.pack(side="right")
 
     def _on_tab_change(self):
         """Callback cuando cambia el tab activo."""
@@ -1041,11 +298,11 @@ class MainWindow(ctk.CTk):
         if filepath:
             self.audio_filepath = filepath
             filename = os.path.basename(filepath)
-            self.file_label.configure(text=filename, text_color=self._get_color("text"))
+            self.tabs.file_label.configure(text=filename, text_color=self._get_color("text"))
 
     def start_transcription(self):
         """Inicia el proceso de transcripción."""
-        current_tab = self.input_tabs.get()
+        current_tab = self.tabs.input_tabs.get()
 
         if "Archivo Local" in current_tab:
             if not self.audio_filepath:
@@ -1086,7 +343,7 @@ class MainWindow(ctk.CTk):
 
     def start_youtube_transcription_thread(self):
         """Inicia transcripción desde YouTube."""
-        url = self.youtube_url_entry.get()
+        url = self.tabs.youtube_url_entry.get()
         if not url or not self._validate_youtube_url(url):
             return
 
@@ -1124,29 +381,29 @@ class MainWindow(ctk.CTk):
         self._clear_queue()
         self._total_audio_duration = 0.0
         self._transcription_actual_time = 0.0
-        self.progress_bar.set(0)
-        self.progress_label.configure(text="0%")
-        self.stats_label.configure(text="")
+        self.progress_section.progress_bar.set(0)
+        self.progress_section.progress_label.configure(text="0%")
+        self.progress_section.stats_label.configure(text="")
 
     def _clear_transcription_area(self):
         """Limpia el área de transcripción."""
-        self.transcription_textbox.delete("1.0", "end")
+        self.transcription_area.transcription_textbox.delete("1.0", "end")
         self.transcribed_text = ""
         self._update_word_count()
 
     def _clear_fragments(self):
         """Limpia los fragmentos de forma eficiente."""
         # Limpiar widgets existentes
-        widgets = self.fragments_inner.winfo_children()
+        widgets = self.fragments_section.fragments_inner.winfo_children()
         if widgets:
             # Destruir widgets en reversa para estabilidad
             for widget in reversed(widgets):
                 widget.destroy()
         
         self.fragment_buttons = []
-        self.fragments_count_label.configure(text="0 fragmentos")
-        self.fragments_canvas.xview_moveto(0) # Reset scroll
-        self._on_fragments_configure()
+        self.fragments_section.fragments_count_label.configure(text="0 fragmentos")
+        self.fragments_section.fragments_canvas.xview_moveto(0) # Reset scroll
+        self.fragments_section._on_fragments_configure()
 
     def _clear_queue(self):
         """Limpia la cola de mensajes."""
@@ -1179,7 +436,7 @@ class MainWindow(ctk.CTk):
         msg_type = msg.get("type")
 
         if msg_type in ["status_update", "progress"]:
-            self.status_label.configure(text=msg.get("data", ""))
+            self.progress_section.status_label.configure(text=msg.get("data", ""))
 
         elif msg_type == "total_duration":
             self._total_audio_duration = msg.get("data", 0.0)
@@ -1187,8 +444,8 @@ class MainWindow(ctk.CTk):
         elif msg_type == "progress_update":
             data = msg.get("data", {})
             percentage = data.get("percentage", 0)
-            self.progress_bar.set(percentage / 100)
-            self.progress_label.configure(text=f"{percentage:.1f}%")
+            self.progress_section.progress_bar.set(percentage / 100)
+            self.progress_section.progress_label.configure(text=f"{percentage:.1f}%")
 
             # Actualizar estadísticas
             current_time = data.get("current_time", 0)
@@ -1202,7 +459,7 @@ class MainWindow(ctk.CTk):
             if rate > 0:
                 stats_text += f"  •  {rate:.2f}x"
 
-            self.stats_label.configure(text=stats_text)
+            self.progress_section.stats_label.configure(text=stats_text)
 
         elif msg_type == "new_segment":
             segment_text = msg.get("text", "")
@@ -1227,18 +484,17 @@ class MainWindow(ctk.CTk):
             real_time = msg.get("real_time", 0.0)
             
             self.transcribed_text = final_text
-            self.transcription_textbox.delete("1.0", "end")
-            self.transcription_textbox.insert("end", final_text)
+            self.transcription_area.set_text(final_text)
             self._update_word_count()
             self._create_fragment_buttons()
             self._set_ui_state(self.UI_STATE_COMPLETED)
             
             # Mostrar mensaje con el tiempo real de transcripción
             completion_msg = f"Transcripción completada en {self._format_time(real_time)}"
-            self.status_label.configure(text=completion_msg)
+            self.progress_section.status_label.configure(text=completion_msg)
             
             # También actualizar el stats_label para que quede fijo con el tiempo final
-            self.stats_label.configure(text=f"Tiempo total: {self._format_time(real_time)}")
+            self.progress_section.stats_label.configure(text=f"Tiempo total: {self._format_time(real_time)}")
 
         elif msg_type == "error":
             self.is_transcribing = False
@@ -1248,10 +504,10 @@ class MainWindow(ctk.CTk):
         elif msg_type == "download_progress":
             data = msg.get("data", {})
             percentage = data.get("percentage", 0)
-            self.progress_bar.set(percentage / 100)
-            self.progress_label.configure(text=f"{percentage:.1f}%")
+            self.progress_section.progress_bar.set(percentage / 100)
+            self.progress_section.progress_label.configure(text=f"{percentage:.1f}%")
             filename = data.get("filename", "")
-            self.status_label.configure(text=f"Descargando: {filename}")
+            self.progress_section.status_label.configure(text=f"Descargando: {filename}")
 
     def _format_time(self, seconds):
         """Formatea segundos a formato legible."""
@@ -1264,9 +520,9 @@ class MainWindow(ctk.CTk):
 
     def _update_word_count(self):
         """Actualiza el contador de palabras."""
-        text = self.transcription_textbox.get("1.0", "end-1c")
+        text = self.transcription_area.transcription_textbox.get("1.0", "end-1c")
         words = len(text.split()) if text else 0
-        self.word_count_label.configure(text=f"{words} palabras")
+        self.transcription_area.word_count_label.configure(text=f"{words} palabras")
 
     def _create_fragment_buttons(self):
         """Crea botones para navegar entre fragmentos."""
@@ -1291,7 +547,7 @@ class MainWindow(ctk.CTk):
             self.fragment_data[i + 1] = fragment
 
             btn = ctk.CTkButton(
-                self.fragments_inner,
+                self.fragments_section.fragments_inner,
                 text=f"#{i + 1}",
                 font=("Segoe UI", 11, "bold"),
                 height=36,
@@ -1311,15 +567,15 @@ class MainWindow(ctk.CTk):
             preview = fragment[:50].replace("\n", " ") + "..."
             add_tooltip(btn, f"Fragmento {i + 1}: {preview}", 300)
 
-        self.fragments_count_label.configure(text=f"{len(fragments)} fragmentos")
-        self._on_fragments_configure()
+        self.fragments_section.fragments_count_label.configure(text=f"{len(fragments)} fragmentos")
+        self.fragments_section._on_fragments_configure()
 
     def _show_fragment(self, fragment_number):
         """Muestra un fragmento específico en el textbox."""
         fragment_text = self.fragment_data.get(fragment_number, "")
         if fragment_text:
-            self.transcription_textbox.delete("1.0", "end")
-            self.transcription_textbox.insert("end", fragment_text)
+            self.transcription_area.transcription_textbox.delete("1.0", "end")
+            self.transcription_area.transcription_textbox.insert("end", fragment_text)
 
             # Resaltar botón activo
             for i, btn in enumerate(self.fragment_buttons):
@@ -1337,8 +593,8 @@ class MainWindow(ctk.CTk):
 
     def _append_transcription_text(self, text):
         """Añade texto a la transcripción en vivo."""
-        self.transcription_textbox.insert("end", text)
-        self.transcription_textbox.see("end")
+        self.transcription_area.transcription_textbox.insert("end", text)
+        self.transcription_area.transcription_textbox.see("end")
         self.transcribed_text += text
         self._update_word_count()
 
@@ -1348,9 +604,9 @@ class MainWindow(ctk.CTk):
         full_text = " ".join([self.fragment_data[i].strip() for i in ordered_indices])
         
         self.transcribed_text = full_text
-        self.transcription_textbox.delete("1.0", "end")
-        self.transcription_textbox.insert("end", full_text + " ")
-        self.transcription_textbox.see("end")
+        self.transcription_area.transcription_textbox.delete("1.0", "end")
+        self.transcription_area.transcription_textbox.insert("end", full_text + " ")
+        self.transcription_area.transcription_textbox.see("end")
         self._update_word_count()
 
     def _add_fragment_button(self, num, text):
@@ -1361,7 +617,7 @@ class MainWindow(ctk.CTk):
                 return
 
         btn = ctk.CTkButton(
-            self.fragments_inner,
+            self.fragments_section.fragments_inner,
             text=f"#{num}",
             font=("Segoe UI", 11, "bold"),
             height=36,
@@ -1393,70 +649,52 @@ class MainWindow(ctk.CTk):
         from src.gui.utils.tooltips import add_tooltip
         add_tooltip(btn, f"Fragmento {num}: {preview}", 300)
 
-        self.fragments_count_label.configure(text=f"{len(self.fragment_buttons)} fragmentos")
-        self._on_fragments_configure()
+        self.fragments_section.fragments_count_label.configure(text=f"{len(self.fragment_buttons)} fragmentos")
+        self.fragments_section._on_fragments_configure()
 
     def _set_ui_state(self, state: str):
         """Configura el estado de la UI."""
         self._current_ui_state = state
 
         if state == self.UI_STATE_IDLE:
-            self.start_transcription_button.configure(state="normal")
-            self.pause_button.configure(state="disabled", text="⏸ Pausar")
-            self.reset_button.configure(state="normal")
-            self.copy_button.configure(state="normal")
-            self.save_txt_button.configure(state="normal")
-            self.save_pdf_button.configure(state="normal")
-            self.select_file_button.configure(state="normal")
-            self.transcribe_youtube_button.configure(
+            self.footer.transcribe_button.configure(state="normal")
+            self.footer.pause_button.configure(state="disabled", text="⏸ Pausar")
+            self.tabs.select_file_button.configure(state="normal")
+            self.tabs.transcribe_youtube_button.configure(
                 state="normal"
-                if self._validate_youtube_url(self.youtube_url_entry.get())
+                if self._validate_youtube_url(self.tabs.youtube_url_entry.get())
                 else "disabled"
             )
+            self.footer.set_transcribing(False)
 
         elif state == self.UI_STATE_TRANSCRIBING:
-            self.start_transcription_button.configure(state="disabled")
-            self.pause_button.configure(state="normal", text="⏸ Pausar")
-            self.reset_button.configure(state="normal")
-            self.copy_button.configure(state="disabled")
-            self.save_txt_button.configure(state="disabled")
-            self.save_pdf_button.configure(state="disabled")
-            self.select_file_button.configure(state="disabled")
-            self.transcribe_youtube_button.configure(state="disabled")
+            self.footer.set_transcribing(True, is_paused=False)
+            self.tabs.select_file_button.configure(state="disabled")
+            self.tabs.transcribe_youtube_button.configure(state="disabled")
 
         elif state == self.UI_STATE_PAUSED:
-            self.start_transcription_button.configure(state="disabled")
-            self.pause_button.configure(state="normal", text="▶ Reanudar")
-            self.reset_button.configure(state="normal")
-            self.copy_button.configure(state="disabled")
-            self.save_txt_button.configure(state="disabled")
-            self.save_pdf_button.configure(state="disabled")
+            self.footer.set_transcribing(True, is_paused=True)
 
         elif state == self.UI_STATE_COMPLETED:
-            self.start_transcription_button.configure(state="normal")
-            self.pause_button.configure(state="disabled", text="⏸ Pausar")
-            self.reset_button.configure(state="normal")
-            self.copy_button.configure(state="normal")
-            self.save_txt_button.configure(state="normal")
-            self.save_pdf_button.configure(state="normal")
-            self.select_file_button.configure(state="normal")
-            self.transcribe_youtube_button.configure(
+            self.footer.set_transcribing(False)
+            self.tabs.select_file_button.configure(state="normal")
+            self.tabs.transcribe_youtube_button.configure(
                 state="normal"
-                if self._validate_youtube_url(self.youtube_url_entry.get())
+                if self._validate_youtube_url(self.tabs.youtube_url_entry.get())
                 else "disabled"
             )
 
         elif state == self.UI_STATE_ERROR:
-            self.start_transcription_button.configure(state="normal")
-            self.pause_button.configure(state="disabled", text="⏸ Pausar")
-            self.reset_button.configure(state="normal")
-            self.copy_button.configure(state="normal")
-            self.save_txt_button.configure(state="normal")
-            self.save_pdf_button.configure(state="normal")
-            self.select_file_button.configure(state="normal")
-            self.transcribe_youtube_button.configure(
+            self.footer.start_transcription_button.configure(state="normal")
+            self.footer.pause_button.configure(state="disabled", text="⏸ Pausar")
+            self.footer.reset_button.configure(state="normal")
+            self.action_buttons.copy_button.configure(state="normal")
+            self.action_buttons.save_txt_button.configure(state="normal")
+            self.action_buttons.save_pdf_button.configure(state="normal")
+            self.tabs.select_file_button.configure(state="normal")
+            self.tabs.transcribe_youtube_button.configure(
                 state="normal"
-                if self._validate_youtube_url(self.youtube_url_entry.get())
+                if self._validate_youtube_url(self.tabs.youtube_url_entry.get())
                 else "disabled"
             )
 
@@ -1469,14 +707,12 @@ class MainWindow(ctk.CTk):
 
         if self._is_paused:
             self.transcriber_engine.pause_transcription()
-            self.pause_button.configure(text="▶ Reanudar")
             self._set_ui_state(self.UI_STATE_PAUSED)
-            self.status_label.configure(text="Transcripción pausada")
+            self.progress_section.status_label.configure(text="Transcripción pausada")
         else:
             self.transcriber_engine.resume_transcription()
-            self.pause_button.configure(text="⏸ Pausar")
             self._set_ui_state(self.UI_STATE_TRANSCRIBING)
-            self.status_label.configure(text="Transcripción reanudada")
+            self.progress_section.status_label.configure(text="Transcripción reanudada")
 
     def reset_process(self):
         """Reinicia el proceso de transcripción."""
@@ -1486,21 +722,21 @@ class MainWindow(ctk.CTk):
 
         self._is_paused = False
         self.audio_filepath = None
-        self.file_label.configure(
+        self.tabs.file_label.configure(
             text="Ningún archivo seleccionado", text_color=self._get_color("text_muted")
         )
-        self.youtube_url_entry.delete(0, "end")
+        self.tabs.youtube_url_entry.delete(0, "end")
         self._clear_transcription_area()
         self._clear_fragments()
         self.fragment_data = {}
         self.current_fragment = 0
         self._clear_queue()
         self._set_ui_state(self.UI_STATE_IDLE)
-        self.pause_button.configure(text="⏸ Pausar")
-        self.status_label.configure(text="Listo para transcribir")
-        self.progress_bar.set(0)
-        self.progress_label.configure(text="0%")
-        self.stats_label.configure(text="")
+        self.footer.pause_button.configure(text="⏸ Pausar")
+        self.progress_section.status_label.configure(text="Listo para transcribir")
+        self.progress_section.progress_bar.set(0)
+        self.progress_section.progress_label.configure(text="0%")
+        self.progress_section.stats_label.configure(text="")
 
     def _handle_error(self, error_msg: str):
         """Maneja errores mostrando mensajes amigables."""
@@ -1518,19 +754,19 @@ class MainWindow(ctk.CTk):
                 friendly_msg = msg
                 break
 
-        self.status_label.configure(text=f"Error: {friendly_msg}")
+        self.progress_section.status_label.configure(text=f"Error: {friendly_msg}")
         messagebox.showerror("Error", f"Error en la transcripción:\n{friendly_msg}")
 
     def copy_transcription(self):
         """Copia la transcripción al portapapeles."""
-        text = self.transcription_textbox.get("1.0", "end-1c")
+        text = self.transcription_area.transcription_textbox.get("1.0", "end-1c")
         if text:
             self.clipboard_clear()
             self.clipboard_append(text)
-            self.status_label.configure(text="Transcripción copiada al portapapeles")
+            self.progress_section.status_label.configure(text="Transcripción copiada al portapapeles")
             self.after(
                 2000,
-                lambda: self.status_label.configure(text="Transcripción completada"),
+                lambda: self.progress_section.status_label.configure(text="Transcripción completada"),
             )
         else:
             messagebox.showwarning("Sin texto", "No hay transcripción para copiar.")
@@ -1551,7 +787,7 @@ class MainWindow(ctk.CTk):
         if filepath:
             try:
                 self.transcriber_engine.save_transcription_txt(text, filepath)
-                self.status_label.configure(
+                self.progress_section.status_label.configure(
                     text=f"Guardado en: {os.path.basename(filepath)}"
                 )
                 messagebox.showinfo("Éxito", "Transcripción guardada correctamente.")
@@ -1574,7 +810,7 @@ class MainWindow(ctk.CTk):
         if filepath:
             try:
                 self.transcriber_engine.save_transcription_pdf(text, filepath)
-                self.status_label.configure(
+                self.progress_section.status_label.configure(
                     text=f"Guardado en: {os.path.basename(filepath)}"
                 )
                 messagebox.showinfo("Éxito", "Transcripción guardada correctamente.")
@@ -1587,7 +823,7 @@ class MainWindow(ctk.CTk):
         if fragment_text:
             self.clipboard_clear()
             self.clipboard_append(fragment_text)
-            self.status_label.configure(
+            self.progress_section.status_label.configure(
                 text=f"Fragmento {fragment_number} copiado al portapapeles."
             )
 
