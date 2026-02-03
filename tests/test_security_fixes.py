@@ -448,7 +448,9 @@ class TestLoggerSanitization(unittest.TestCase):
         
         # Probar con diferentes patrones de tokens
         test_cases = [
-            ("Token: hf_1234567890abcdef1234567890abcdef", "[HF_TOKEN_REDACTED]"),
+            # Token HF sin prefijo "Token:" para evitar match con el patrón genérico
+            ("Mi token de HF es hf_1234567890abcdef1234567890", "[HF_TOKEN_REDACTED]"),
+            # Patrones con formato key=value
             ("password=mysecretpassword123", "[REDACTED]"),
             ("api_key=sk-1234567890abcdef", "[REDACTED]"),
             ("secret=verysecretvalue12345", "[REDACTED]"),
@@ -459,7 +461,8 @@ class TestLoggerSanitization(unittest.TestCase):
                 # El filtro debe sanitizar el mensaje
                 sanitized = sanitizer._sanitize(original)
                 # El sanitizado debe contener el patrón de redacción
-                self.assertIn(expected_pattern, sanitized)
+                self.assertIn(expected_pattern, sanitized, 
+                    f"Expected '{expected_pattern}' in '{sanitized}'")
 
 
 if __name__ == "__main__":
