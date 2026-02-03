@@ -1,0 +1,228 @@
+{
+  "colors": {
+    "primary": {
+      "light": "#6366F1",
+      "dark": "#818CF8"
+    },
+    "primary_hover": {
+      "light": "#4F46E5",
+      "dark": "#A5B4FC"
+    },
+    "primary_light": {
+      "light": "#E0E7FF",
+      "dark": "#312E81"
+    },
+    "secondary": {
+      "light": "#14B8A6",
+      "dark": "#2DD4BF"
+    },
+    "secondary_hover": {
+      "light": "#0D9488",
+      "dark": "#5EEAD4"
+    },
+    "secondary_light": {
+      "light": "#CCFBF1",
+      "dark": "#115E59"
+    },
+    "accent": {
+      "light": "#F43F5E",
+      "dark": "#FB7185"
+    },
+    "accent_hover": {
+      "light": "#E11D48",
+      "dark": "#FDA4AF"
+    },
+    "accent_light": {
+      "light": "#FFE4E6",
+      "dark": "#881337"
+    },
+    "success": {
+      "light": "#22C55E",
+      "dark": "#4ADE80"
+    },
+    "success_hover": {
+      "light": "#16A34A",
+      "dark": "#86EFAC"
+    },
+    "success_light": {
+      "light": "#DCFCE7",
+      "dark": "#14532D"
+    },
+    "warning": {
+      "light": "#F59E0B",
+      "dark": "#FBBF24"
+    },
+    "warning_hover": {
+      "light": "#D97706",
+      "dark": "#FCD34D"
+    },
+    "warning_light": {
+      "light": "#FEF3C7",
+      "dark": "#78350F"
+    },
+    "error": {
+      "light": "#EF4444",
+      "dark": "#F87171"
+    },
+    "error_hover": {
+      "light": "#DC2626",
+      "dark": "#FCA5A5"
+    },
+    "error_light": {
+      "light": "#FEE2E2",
+      "dark": "#7F1D1D"
+    },
+    "background": {
+      "light": "#FAFAFA",
+      "dark": "#0F0F0F"
+    },
+    "surface": {
+      "light": "#FFFFFF",
+      "dark": "#18181B"
+    },
+    "surface_elevated": {
+      "light": "#F4F4F5",
+      "dark": "#27272A"
+    },
+    "text": {
+      "light": "#18181B",
+      "dark": "#FAFAFA"
+    },
+    "text_secondary": {
+      "light": "#71717A",
+      "dark": "#A1A1AA"
+    },
+    "text_muted": {
+      "light": "#A1A1AA",
+      "dark": "#71717A"
+    },
+    "border": {
+      "light": "#E4E4E7",
+      "dark": "#3F3F46"
+    },
+    "border_light": {
+      "light": "#F4F4F5",
+      "dark": "#52525B"
+    },
+    "border_hover": {
+      "light": "#D4D4D8",
+      "dark": "#52525B"
+    },
+    "shadow": {
+      "light": "rgba(0, 0, 0, 0.05)",
+      "dark": "rgba(0, 0, 0, 0.2)"
+    },
+    "shadow_strong": {
+      "light": "rgba(0, 0, 0, 0.1)",
+      "dark": "rgba(0, 0, 0, 0.4)"
+    }
+  },
+  "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 20,
+    "2xl": 24,
+    "3xl": 32,
+    "4xl": 40
+  },
+  "border_radius": {
+    "sm": 6,
+    "md": 8,
+    "lg": 10,
+    "xl": 12,
+    "2xl": 16,
+    "full": 9999
+  },
+  "typography": {
+    "font_family": "Segoe UI",
+    "font_family_mono": "Consolas",
+    "sizes": {
+      "xs": 10,
+      "sm": 11,
+      "md": 12,
+      "lg": 13,
+      "xl": 14,
+      "2xl": 16,
+      "3xl": 18,
+      "4xl": 20,
+      "5xl": 24
+    },
+    "weights": {
+      "normal": "normal",
+      "medium": "bold",
+      "semibold": "bold",
+      "bold": "bold"
+    }
+  },
+  "components": {
+    "button": {
+      "primary": {
+        "corner_radius": 8,
+        "height": 36,
+        "padding_x": 20,
+        "border_width": 0,
+        "font_size": 13,
+        "font_weight": "bold"
+      },
+      "secondary": {
+        "corner_radius": 8,
+        "height": 36,
+        "padding_x": 20,
+        "border_width": 1,
+        "font_size": 13,
+        "font_weight": "bold"
+      },
+      "ghost": {
+        "corner_radius": 6,
+        "height": 32,
+        "padding_x": 12,
+        "border_width": 0,
+        "font_size": 12,
+        "font_weight": "normal"
+      },
+      "icon": {
+        "corner_radius": 6,
+        "size": 32,
+        "border_width": 0
+      }
+    },
+    "input": {
+      "corner_radius": 8,
+      "border_width": 1,
+      "height": 40,
+      "padding_x": 12,
+      "font_size": 14
+    },
+    "card": {
+      "corner_radius": 12,
+      "border_width": 1,
+      "padding": 24
+    },
+    "tab": {
+      "corner_radius": 8,
+      "height": 36,
+      "padding_x": 16,
+      "font_size": 13
+    },
+    "progress": {
+      "height": 4,
+      "corner_radius": 2,
+      "track_color": "border",
+      "fill_color": "primary"
+    },
+    "badge": {
+      "corner_radius": 6,
+      "padding_x": 8,
+      "padding_y": 4,
+      "font_size": 12
+    }
+  },
+  "animations": {
+    "duration_fast": 150,
+    "duration_normal": 200,
+    "duration_slow": 300,
+    "easing": "cubic-bezier(0.4, 0, 0.2, 1)"
+  }
+}
