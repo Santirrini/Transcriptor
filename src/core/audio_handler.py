@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 import queue
 
+from src.core.exceptions import AudioProcessingError, YouTubeDownloadError, SecurityError
+from src.core.logger import logger
+
 
 class AudioHandler:
     """
@@ -126,8 +129,8 @@ class AudioHandler:
                 minutes = int(duration_match.group(2))
                 seconds = float(duration_match.group(3))
                 return hours * 3600 + minutes * 60 + seconds
-        except Exception as e:
-            print(f"[WARNING] No se pudo obtener duración: {e}")
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
+            logger.warning(f"No se pudo obtener duración: {e}")
         return 0.0
 
     def _validate_path_security(self, input_path: Path, output_path: Path) -> None:
@@ -146,7 +149,8 @@ class AudioHandler:
         for char in dangerous_chars:
             if char in str(input_path) or char in str(output_path):
                 error_msg = f"Caracter peligroso detectado en ruta: '{char}'. Operación abortada por seguridad."
-                raise ValueError(error_msg)
+                logger.security(error_msg)
+                raise SecurityError(error_msg, violation_type="path_injection")
 
     def preprocess_audio(self, input_filepath: str, output_filepath: str):
         """
@@ -183,13 +187,25 @@ class AudioHandler:
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=300,  # 5 minutos máximo para conversión
                 encoding="utf-8",
                 errors="ignore",
             )
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Fallo en preprocesamiento de audio: {e.stderr}")
-        except Exception as e:
-            raise RuntimeError(f"Fallo inesperado en preprocesamiento de audio: {e}")
+            raise AudioProcessingError(
+                f"Fallo en preprocesamiento de audio: {e.stderr}",
+                filepath=input_filepath
+            )
+        except subprocess.TimeoutExpired as e:
+            raise AudioProcessingError(
+                "Timeout en preprocesamiento de audio (máximo 5 minutos)",
+                filepath=input_filepath
+            )
+        except (OSError, IOError) as e:
+            raise AudioProcessingError(
+                f"Fallo inesperado en preprocesamiento de audio: {e}",
+                filepath=input_filepath
+            )
 
     def download_audio_from_youtube(
         self, youtube_url: str, output_dir: Optional[str] = None
@@ -298,11 +314,18 @@ class AudioHandler:
 
             return final_standardized_wav_path
 
-        except Exception as e:
+        except (yt_dlp.utils.DownloadError, OSError, IOError) as e:
+            error_msg = f"Error en descarga de YouTube: {str(e)}"
+            logger.error(error_msg)
             if self.gui_queue:
-                self.gui_queue.put(
-                    {"type": "error", "data": f"Error en descarga de YouTube: {str(e)}"}
-                )
+                self.gui_queue.put({"type": "error", "data": error_msg})
+            return None
+        except Exception as e:
+            # Catch-all para errores inesperados de yt-dlp
+            error_msg = f"Error inesperado en descarga de YouTube: {str(e)}"
+            logger.error(error_msg)
+            if self.gui_queue:
+                self.gui_queue.put({"type": "error", "data": error_msg})
             return None
 
     def _yt_dlp_progress_hook(self, d: Dict[str, Any]):

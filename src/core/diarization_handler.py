@@ -9,6 +9,7 @@ import threading
 from typing import Optional, List, Any
 
 from src.core.exceptions import DiarizationError, ConfigurationError
+from src.core.logger import logger
 
 
 class DiarizationHandler:
@@ -59,7 +60,7 @@ class DiarizationHandler:
                 "con tu token de Hugging Face Hub. "
                 "Obtén un token en: https://huggingface.co/settings/tokens"
             )
-            print(f"[DiarizationHandler SECURITY ERROR] {error_msg}")
+            logger.security(error_msg)
             self._pipeline_status = "error"
             raise ConfigurationError(
                 error_msg,
@@ -72,7 +73,7 @@ class DiarizationHandler:
             error_msg = (
                 "Token de Hugging Face inválido (demasiado corto). Verifica tu token."
             )
-            print(f"[DiarizationHandler SECURITY ERROR] {error_msg}")
+            logger.security(error_msg)
             self._pipeline_status = "error"
             raise ConfigurationError(
                 error_msg,
@@ -80,14 +81,9 @@ class DiarizationHandler:
                 error_code="HUGGINGFACE_TOKEN_INVALID",
             )
 
-        # Enmascarar token para logs (seguridad)
-        masked_token = (
-            huggingface_token[:4]
-            + "*" * (len(huggingface_token) - 8)
-            + huggingface_token[-4:]
-        )
-        print(f"[DiarizationHandler] Token configurado: {masked_token}")
-        print("[DiarizationHandler] Cargando pipeline de pyannote.audio...")
+        # El token se enmascara automáticamente por el logger
+        logger.debug(f"Token configurado: {huggingface_token}")
+        logger.info("Cargando pipeline de pyannote.audio...")
 
         try:
             # Importación perezosa para reducir tiempo de inicio
@@ -98,7 +94,7 @@ class DiarizationHandler:
                 use_auth_token=True,  # Usa token de variable de entorno
             )
             self._pipeline_status = "loaded"
-            print("[DiarizationHandler] Pipeline cargado exitosamente")
+            logger.info("Pipeline de diarización cargado exitosamente")
 
         except Exception as e:
             error_str = str(e)
@@ -112,7 +108,7 @@ class DiarizationHandler:
             else:
                 error_msg = f"Error al cargar el pipeline de diarización: {error_str}"
 
-            print(f"[DiarizationHandler ERROR] {error_msg}")
+            logger.error(error_msg)
             self._pipeline_status = "error"
             raise DiarizationError(error_msg, error_code="DIARIZATION_LOAD_ERROR")
 
@@ -140,7 +136,7 @@ class DiarizationHandler:
 
         try:
             # Ejecutar diarización
-            print(f"[DiarizationHandler] Ejecutando diarización en: {audio_filepath}")
+            logger.info(f"Ejecutando diarización en: {audio_filepath}")
             diarization_annotation = self.diarization_pipeline(audio_filepath)
 
             # Alinear con transcripción
@@ -152,7 +148,7 @@ class DiarizationHandler:
 
         except Exception as e:
             error_msg = f"Error durante la diarización: {str(e)}"
-            print(f"[DiarizationHandler ERROR] {error_msg}")
+            logger.error(error_msg)
             raise DiarizationError(error_msg, error_code="DIARIZATION_EXEC_ERROR")
 
     def _align_with_transcription(

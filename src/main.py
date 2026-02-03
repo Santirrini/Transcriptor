@@ -13,6 +13,7 @@ sys.path.insert(0, project_root)
 from src.gui.main_window import MainWindow
 from src.core.transcriber_engine import TranscriberEngine
 from src.gui.theme import theme_manager
+from src.core.logger import logger
 
 
 def main():
@@ -41,7 +42,7 @@ def main():
     try:
         transcriber = TranscriberEngine()
     except RuntimeError as e:
-        print(f"Error fatal al inicializar el motor de transcripción: {e}")
+        logger.critical(f"Error fatal al inicializar el motor de transcripción: {e}")
         root = tk.Tk()
         root.withdraw()
         messagebox.showerror(

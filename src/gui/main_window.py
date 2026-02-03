@@ -28,6 +28,7 @@ from src.gui.components.fragments_section import FragmentsSection
 from src.gui.components.transcription_area import TranscriptionArea
 from src.gui.components.action_buttons import ActionButtons
 from src.gui.components.footer import Footer
+from src.core.logger import logger
 
 
 def validate_youtube_url(url: str) -> bool:
@@ -496,7 +497,7 @@ class MainWindow(ctk.CTk):
                 except queue.Empty:
                     break
         except Exception as e:
-            print(f"Error en _check_queue: {e}")
+            logger.error(f"Error en _check_queue: {e}")
         finally:
             # Re-agendar el chequeo
             self.after(100, self._check_queue)

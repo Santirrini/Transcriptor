@@ -8,6 +8,8 @@ import json
 import os
 from typing import Dict, Any, Optional
 
+from src.core.logger import logger
+
 
 class ThemeManager:
     """
@@ -217,7 +219,7 @@ class ThemeManager:
             try:
                 callback(self._current_mode)
             except Exception as e:
-                print(f"Error al notificar observador: {e}")
+                logger.warning(f"Error al notificar observador de tema: {e}")
 
     def reload_theme(self):
         """Recarga la configuración del tema desde el archivo."""

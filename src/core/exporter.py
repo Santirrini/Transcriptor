@@ -1,6 +1,9 @@
 import os
 from fpdf import FPDF
 
+from src.core.exceptions import ExportError
+from src.core.logger import logger
+
 class TranscriptionExporter:
     """
     Clase encargada de exportar transcripciones a diferentes formatos (TXT, PDF).
@@ -21,10 +24,10 @@ class TranscriptionExporter:
         try:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(text)
-            print(f"Transcripción guardada como TXT en: {filepath}")
-        except Exception as e:
-            print(f"Error al guardar TXT: {e}")
-            raise
+            logger.info(f"Transcripción guardada como TXT en: {filepath}")
+        except (IOError, OSError, PermissionError) as e:
+            logger.error(f"Error al guardar TXT: {e}")
+            raise ExportError(f"Error al guardar TXT: {e}", export_format="txt")
 
     @staticmethod
     def save_transcription_pdf(text: str, filepath: str) -> None:
@@ -64,7 +67,7 @@ class TranscriptionExporter:
                     0, 10, txt=safe_text.encode("latin-1", "replace").decode("latin-1")
                 )
             pdf.output(filepath)
-            print(f"Transcripción guardada como PDF en: {filepath}")
-        except Exception as e:
-            print(f"Error al guardar PDF: {e}")
-            raise
+            logger.info(f"Transcripción guardada como PDF en: {filepath}")
+        except (IOError, OSError, ValueError) as e:
+            logger.error(f"Error al guardar PDF: {e}")
+            raise ExportError(f"Error al guardar PDF: {e}", export_format="pdf")

@@ -9,6 +9,7 @@ from typing import Optional, Dict
 from faster_whisper import WhisperModel
 
 from src.core.exceptions import ModelLoadError
+from src.core.logger import logger
 
 
 class ModelManager:
@@ -57,7 +58,7 @@ class ModelManager:
         """
         # Verificar si ya está cargado
         if self.current_model_size == model_size and self.current_model is not None:
-            print(f"[ModelManager] Reutilizando modelo '{model_size}' ya cargado")
+            logger.debug(f"Reutilizando modelo '{model_size}' ya cargado")
             return self.current_model
 
         # Verificar caché
@@ -66,12 +67,12 @@ class ModelManager:
                 if model_size in self.model_cache:
                     self.current_model = self.model_cache[model_size]
                     self.current_model_size = model_size
-                    print(f"[ModelManager] Modelo '{model_size}' obtenido del caché")
+                    logger.debug(f"Modelo '{model_size}' obtenido del caché")
                     return self.current_model
 
         # Cargar nuevo modelo
-        print(
-            f"[ModelManager] Cargando modelo '{model_size}' en {self.device} "
+        logger.info(
+            f"Cargando modelo Whisper '{model_size}' en {self.device} "
             f"con compute_type={self.compute_type}..."
         )
 
@@ -85,12 +86,12 @@ class ModelManager:
                 self.current_model = model
                 self.current_model_size = model_size
 
-            print(f"[ModelManager] Modelo '{model_size}' cargado exitosamente")
+            logger.info(f"Modelo '{model_size}' cargado exitosamente")
             return model
 
-        except Exception as e:
+        except (RuntimeError, OSError, MemoryError) as e:
             error_msg = f"Error al cargar el modelo Whisper '{model_size}': {str(e)}"
-            print(f"[ModelManager ERROR] {error_msg}")
+            logger.error(error_msg)
             raise ModelLoadError(
                 error_msg, model_size=model_size, details={"error": str(e)}
             )
@@ -105,7 +106,7 @@ class ModelManager:
             self.model_cache.clear()
             self.current_model = None
             self.current_model_size = None
-        print("[ModelManager] Caché de modelos limpiado")
+        logger.info("Caché de modelos limpiado")
 
     def get_cached_models(self) -> list:
         """Retorna lista de modelos en caché."""
