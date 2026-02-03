@@ -30,6 +30,55 @@ from src.gui.components.action_buttons import ActionButtons
 from src.gui.components.footer import Footer
 
 
+def validate_youtube_url(url: str) -> bool:
+    """
+    Valida que una URL sea una URL válida de YouTube.
+
+    Previene SSRF y ejecución de URLs no válidas o maliciosas.
+
+    Args:
+        url: URL a validar
+
+    Returns:
+        bool: True si es una URL de YouTube válida, False en caso contrario
+    """
+    if not url or not isinstance(url, str):
+        return False
+
+    # Normalizar URL
+    url = url.strip().lower()
+
+    # Rechazar protocolos peligrosos
+    if url.startswith("file://") or url.startswith("javascript:"):
+        return False
+
+    # Patrones válidos de YouTube
+    youtube_patterns = [
+        r"^https?://(www\.)?youtube\.com/watch\?v=[a-z0-9_-]+",
+        r"^https?://(www\.)?youtu\.be/[a-z0-9_-]+",
+        r"^https?://(www\.)?youtube\.com/shorts/[a-z0-9_-]+",
+        r"^https?://(www\.)?youtube\.com/embed/[a-z0-9_-]+",
+        r"^(www\.)?youtube\.com/watch\?v=[a-z0-9_-]+",
+        r"^youtube\.com/watch\?v=[a-z0-9_-]+",
+    ]
+
+    for pattern in youtube_patterns:
+        if re.match(pattern, url, re.IGNORECASE):
+            # Verificar que tenga un ID de video válido (no vacío)
+            if "v=" in url:
+                video_id = url.split("v=")[-1].split("&")[0]
+                if len(video_id) < 5:
+                    return False
+            elif "/" in url:
+                parts = url.split("/")
+                last_part = parts[-1]
+                if "watch" not in last_part and len(last_part) < 5:
+                    return False
+            return True
+
+    return False
+
+
 class MainWindow(ctk.CTk):
     """
     Ventana principal modernizada con diseño minimalista.
@@ -169,8 +218,12 @@ class MainWindow(ctk.CTk):
 
         # Header
         self.header = Header(
-            self.main_container, theme_manager, self.ui_mode, self.theme_var,
-            self._toggle_theme, self._on_mode_change
+            self.main_container,
+            theme_manager,
+            self.ui_mode,
+            self.theme_var,
+            self._toggle_theme,
+            self._on_mode_change,
         )
         self.header.grid(row=0, column=0, sticky="ew")
 
@@ -188,17 +241,26 @@ class MainWindow(ctk.CTk):
             scrollbar_button_color=self._get_color("border"),
             scrollbar_button_hover_color=self._get_color("border_hover"),
         )
-        self.content_scroll.grid(row=2, column=0, sticky="nsew", padx=spacing, pady=spacing)
+        self.content_scroll.grid(
+            row=2, column=0, sticky="nsew", padx=spacing, pady=spacing
+        )
         self.content_scroll.grid_columnconfigure(0, weight=1)
 
         # Componentes del área de contenido
         self.tabs = Tabs(
-            self.content_scroll, theme_manager,
-            self.language_var, self.model_var, self.beam_size_var,
-            self.use_vad_var, self.perform_diarization_var,
-            self.live_transcription_var, self.parallel_processing_var,
-            self.select_audio_file, self.start_youtube_transcription_thread,
-            self._on_tab_change, self._validate_youtube_input
+            self.content_scroll,
+            theme_manager,
+            self.language_var,
+            self.model_var,
+            self.beam_size_var,
+            self.use_vad_var,
+            self.perform_diarization_var,
+            self.live_transcription_var,
+            self.parallel_processing_var,
+            self.select_audio_file,
+            self.start_youtube_transcription_thread,
+            self._on_tab_change,
+            self._validate_youtube_input,
         )
         self.tabs.grid(row=0, column=0, sticky="ew", pady=(0, 16))
 
@@ -212,18 +274,22 @@ class MainWindow(ctk.CTk):
         self.transcription_area.grid(row=3, column=0, sticky="nsew", pady=(0, 16))
 
         self.action_buttons = ActionButtons(
-            self.content_scroll, theme_manager,
-            self.save_transcription_txt, self.save_transcription_pdf
+            self.content_scroll,
+            theme_manager,
+            self.save_transcription_txt,
+            self.save_transcription_pdf,
         )
         self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 24))
 
         # Footer fijo
         self.footer = Footer(
-            self.main_container, theme_manager,
-            self.start_transcription, self.toggle_pause_transcription, self.reset_process
+            self.main_container,
+            theme_manager,
+            self.start_transcription,
+            self.toggle_pause_transcription,
+            self.reset_process,
         )
         self.footer.grid(row=3, column=0, sticky="ew")
-
 
     def _on_tab_change(self):
         """Callback cuando cambia el tab activo."""
@@ -298,7 +364,9 @@ class MainWindow(ctk.CTk):
         if filepath:
             self.audio_filepath = filepath
             filename = os.path.basename(filepath)
-            self.tabs.file_label.configure(text=filename, text_color=self._get_color("text"))
+            self.tabs.file_label.configure(
+                text=filename, text_color=self._get_color("text")
+            )
 
     def start_transcription(self):
         """Inicia el proceso de transcripción."""
@@ -349,7 +417,9 @@ class MainWindow(ctk.CTk):
 
         self._prepare_for_transcription()
 
-        lang, model, beam_size, use_vad, diarization, live, parallel = self._get_transcription_params()
+        lang, model, beam_size, use_vad, diarization, live, parallel = (
+            self._get_transcription_params()
+        )
 
         # Iniciar transcripción de YouTube en un hilo separado
         thread = threading.Thread(
@@ -399,10 +469,10 @@ class MainWindow(ctk.CTk):
             # Destruir widgets en reversa para estabilidad
             for widget in reversed(widgets):
                 widget.destroy()
-        
+
         self.fragment_buttons = []
         self.fragments_section.fragments_count_label.configure(text="0 fragmentos")
-        self.fragments_section.fragments_canvas.xview_moveto(0) # Reset scroll
+        self.fragments_section.fragments_canvas.xview_moveto(0)  # Reset scroll
         self.fragments_section._on_fragments_configure()
 
     def _clear_queue(self):
@@ -464,11 +534,11 @@ class MainWindow(ctk.CTk):
         elif msg_type == "new_segment":
             segment_text = msg.get("text", "")
             idx = msg.get("idx")
-            
+
             if idx is not None:
                 # Almacenar fragmento por su índice
                 self.fragment_data[idx + 1] = segment_text
-                
+
                 # Actualizar la UI solo si la transcripción en vivo está activada
                 if self.live_transcription_var.get():
                     self._update_ordered_transcription()
@@ -482,19 +552,23 @@ class MainWindow(ctk.CTk):
             self.is_transcribing = False
             final_text = msg.get("final_text", "")
             real_time = msg.get("real_time", 0.0)
-            
+
             self.transcribed_text = final_text
             self.transcription_area.set_text(final_text)
             self._update_word_count()
             self._create_fragment_buttons()
             self._set_ui_state(self.UI_STATE_COMPLETED)
-            
+
             # Mostrar mensaje con el tiempo real de transcripción
-            completion_msg = f"Transcripción completada en {self._format_time(real_time)}"
+            completion_msg = (
+                f"Transcripción completada en {self._format_time(real_time)}"
+            )
             self.progress_section.status_label.configure(text=completion_msg)
-            
+
             # También actualizar el stats_label para que quede fijo con el tiempo final
-            self.progress_section.stats_label.configure(text=f"Tiempo total: {self._format_time(real_time)}")
+            self.progress_section.stats_label.configure(
+                text=f"Tiempo total: {self._format_time(real_time)}"
+            )
 
         elif msg_type == "error":
             self.is_transcribing = False
@@ -507,7 +581,9 @@ class MainWindow(ctk.CTk):
             self.progress_section.progress_bar.set(percentage / 100)
             self.progress_section.progress_label.configure(text=f"{percentage:.1f}%")
             filename = data.get("filename", "")
-            self.progress_section.status_label.configure(text=f"Descargando: {filename}")
+            self.progress_section.status_label.configure(
+                text=f"Descargando: {filename}"
+            )
 
     def _format_time(self, seconds):
         """Formatea segundos a formato legible."""
@@ -567,7 +643,9 @@ class MainWindow(ctk.CTk):
             preview = fragment[:50].replace("\n", " ") + "..."
             add_tooltip(btn, f"Fragmento {i + 1}: {preview}", 300)
 
-        self.fragments_section.fragments_count_label.configure(text=f"{len(fragments)} fragmentos")
+        self.fragments_section.fragments_count_label.configure(
+            text=f"{len(fragments)} fragmentos"
+        )
         self.fragments_section._on_fragments_configure()
 
     def _show_fragment(self, fragment_number):
@@ -602,7 +680,7 @@ class MainWindow(ctk.CTk):
         """Reconstruye la transcripción en orden basándose en fragmentos."""
         ordered_indices = sorted(self.fragment_data.keys())
         full_text = " ".join([self.fragment_data[i].strip() for i in ordered_indices])
-        
+
         self.transcribed_text = full_text
         self.transcription_area.transcription_textbox.delete("1.0", "end")
         self.transcription_area.transcription_textbox.insert("end", full_text + " ")
@@ -630,10 +708,12 @@ class MainWindow(ctk.CTk):
             corner_radius=8,
             command=lambda n=num: self._show_fragment(n),
         )
-        
+
         # Insertar en la posición correcta (ordenado por índice)
         # Como CTk no permite 'pack' en posición específica fácilmente, borramos y re-empacamos si no es el último
-        if not self.fragment_buttons or num > int(self.fragment_buttons[-1].cget("text")[1:]):
+        if not self.fragment_buttons or num > int(
+            self.fragment_buttons[-1].cget("text")[1:]
+        ):
             btn.pack(side="left", padx=4)
             self.fragment_buttons.append(btn)
         else:
@@ -647,9 +727,12 @@ class MainWindow(ctk.CTk):
         # Tooltip
         preview = text[:50].replace("\n", " ").strip() + "..."
         from src.gui.utils.tooltips import add_tooltip
+
         add_tooltip(btn, f"Fragmento {num}: {preview}", 300)
 
-        self.fragments_section.fragments_count_label.configure(text=f"{len(self.fragment_buttons)} fragmentos")
+        self.fragments_section.fragments_count_label.configure(
+            text=f"{len(self.fragment_buttons)} fragmentos"
+        )
         self.fragments_section._on_fragments_configure()
 
     def _set_ui_state(self, state: str):
@@ -763,10 +846,14 @@ class MainWindow(ctk.CTk):
         if text:
             self.clipboard_clear()
             self.clipboard_append(text)
-            self.progress_section.status_label.configure(text="Transcripción copiada al portapapeles")
+            self.progress_section.status_label.configure(
+                text="Transcripción copiada al portapapeles"
+            )
             self.after(
                 2000,
-                lambda: self.progress_section.status_label.configure(text="Transcripción completada"),
+                lambda: self.progress_section.status_label.configure(
+                    text="Transcripción completada"
+                ),
             )
         else:
             messagebox.showwarning("Sin texto", "No hay transcripción para copiar.")

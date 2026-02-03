@@ -130,21 +130,36 @@ class AudioHandler:
             print(f"[WARNING] No se pudo obtener duración: {e}")
         return 0.0
 
-    def preprocess_audio(self, input_filepath: str, output_filepath: str):
+    def _validate_path_security(self, input_path: Path, output_path: Path) -> None:
         """
-        Convierte un archivo de audio a formato WAV PCM 16kHz mono usando FFmpeg.
+        Valida que las rutas no contengan caracteres peligrosos que podrían causar
+        inyección de comandos.
+
+        Args:
+            input_path: Ruta de entrada a validar
+            output_path: Ruta de salida a validar
+
+        Raises:
+            ValueError: Si se detecta un caracter peligroso en las rutas
         """
-        # Validar extensiones antes de procesar
-        self._validate_audio_extension(input_filepath)
-
-        input_path = Path(input_filepath).resolve()
-        output_path = Path(output_filepath).resolve()
-
         dangerous_chars = [";", "|", "&", "$", "`", "||", "&&", ">", "<", "(", ")"]
         for char in dangerous_chars:
             if char in str(input_path) or char in str(output_path):
                 error_msg = f"Caracter peligroso detectado en ruta: '{char}'. Operación abortada por seguridad."
                 raise ValueError(error_msg)
+
+    def preprocess_audio(self, input_filepath: str, output_filepath: str):
+        """
+        Convierte un archivo de audio a formato WAV PCM 16kHz mono usando FFmpeg.
+        """
+        input_path = Path(input_filepath).resolve()
+        output_path = Path(output_filepath).resolve()
+
+        # Primero validar seguridad (caracteres peligrosos)
+        self._validate_path_security(input_path, output_path)
+
+        # Luego validar extensiones permitidas
+        self._validate_audio_extension(input_filepath)
 
         ffmpeg_executable = self._verify_ffmpeg_available()
 
