@@ -1,19 +1,20 @@
-import customtkinter as ctk
-import threading
+import os
 import queue
 import sys
-import os
+import threading
 import tkinter as tk
 from tkinter import messagebox
+
+import customtkinter as ctk
 
 # Añadir el directorio raíz del proyecto al PATH para importaciones relativas
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
-from src.gui.main_window import MainWindow
-from src.core.transcriber_engine import TranscriberEngine
-from src.gui.theme import theme_manager
 from src.core.logger import logger
+from src.core.transcriber_engine import TranscriberEngine
+from src.gui.main_window import MainWindow
+from src.gui.theme import theme_manager
 
 
 def main():

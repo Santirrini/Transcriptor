@@ -9,26 +9,26 @@ Estos tests verifican:
 - Manejo de errores de red
 """
 
-import unittest
-import sys
-import os
-import tempfile
 import json
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+import os
+import sys
+import tempfile
+import unittest
 from datetime import datetime
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
 # Añadir el directorio raíz del proyecto al PATH
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
+from src.core.exceptions import ConfigurationError
 from src.core.update_checker import (
     UpdateChecker,
     UpdateInfo,
     UpdateSeverity,
     update_checker,
 )
-from src.core.exceptions import ConfigurationError
 
 
 class TestUpdateChecker(unittest.TestCase):
@@ -214,9 +214,7 @@ class TestUpdateChecker(unittest.TestCase):
         # Verificar
         self.assertIsNotNone(result)
         self.assertEqual(result["tag_name"], "v1.1.0")
-        self.assertEqual(
-            result["html_url"], "https://github.com/test/repo/releases/tag/v1.1.0"
-        )
+        self.assertEqual(result["html_url"], "https://github.com/test/repo/releases/tag/v1.1.0")
 
     @patch("urllib.request.urlopen")
     def test_fetch_latest_release_404(self, mock_urlopen):
@@ -318,9 +316,7 @@ class TestUpdateChecker(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertIsInstance(result, UpdateInfo)
         self.assertEqual(result.version, "1.1.0")
-        self.assertEqual(
-            result.release_url, "https://github.com/test/repo/releases/tag/v1.1.0"
-        )
+        self.assertEqual(result.release_url, "https://github.com/test/repo/releases/tag/v1.1.0")
 
     @patch.object(UpdateChecker, "_fetch_latest_release")
     def test_check_for_updates_skipped_version(self, mock_fetch):

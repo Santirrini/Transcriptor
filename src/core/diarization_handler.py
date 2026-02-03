@@ -6,9 +6,9 @@ Maneja toda la lógica de diarización de hablantes usando pyannote.audio.
 
 import os
 import threading
-from typing import Optional, List, Any
+from typing import Any, List, Optional
 
-from src.core.exceptions import DiarizationError, ConfigurationError
+from src.core.exceptions import ConfigurationError, DiarizationError
 from src.core.logger import logger
 
 
@@ -70,9 +70,7 @@ class DiarizationHandler:
 
         # Validar longitud del token
         if len(huggingface_token.strip()) < 10:
-            error_msg = (
-                "Token de Hugging Face inválido (demasiado corto). Verifica tu token."
-            )
+            error_msg = "Token de Hugging Face inválido (demasiado corto). Verifica tu token."
             logger.security(error_msg)
             self._pipeline_status = "error"
             raise ConfigurationError(
@@ -112,9 +110,7 @@ class DiarizationHandler:
             self._pipeline_status = "error"
             raise DiarizationError(error_msg, error_code="DIARIZATION_LOAD_ERROR")
 
-    def perform_diarization(
-        self, audio_filepath: str, whisper_segments: List[Any]
-    ) -> str:
+    def perform_diarization(self, audio_filepath: str, whisper_segments: List[Any]) -> str:
         """
         Realiza la diarización del audio y alinea con segmentos de Whisper.
 
@@ -205,9 +201,7 @@ class DiarizationHandler:
 
     def is_loaded(self) -> bool:
         """Verifica si el pipeline está cargado."""
-        return (
-            self._pipeline_status == "loaded" and self.diarization_pipeline is not None
-        )
+        return self._pipeline_status == "loaded" and self.diarization_pipeline is not None
 
     def get_status(self) -> str:
         """Obtiene el estado del pipeline."""

@@ -3,9 +3,10 @@ Sistema de tooltips flotantes para DesktopWhisperTranscriber.
 Proporciona tooltips modernos con delay y animación suave.
 """
 
-import customtkinter as ctk
-from typing import Optional
 import time
+from typing import Optional
+
+import customtkinter as ctk
 
 
 class FloatingTooltip:
@@ -180,9 +181,7 @@ class TooltipManager:
         """Inicializa el manager de tooltips."""
         self.tooltips: dict = {}
 
-    def add_tooltip(
-        self, widget, text: str, delay_ms: int = 500, **kwargs
-    ) -> FloatingTooltip:
+    def add_tooltip(self, widget, text: str, delay_ms: int = 500, **kwargs) -> FloatingTooltip:
         """Añade un tooltip a un widget.
 
         Args:

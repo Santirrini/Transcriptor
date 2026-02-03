@@ -4,11 +4,11 @@ Chunk Processor Module.
 Maneja el procesamiento de audio por chunks para archivos grandes.
 """
 
-import time
 import queue
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Tuple, Optional, Dict, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.core.exceptions import ChunkProcessingError
 from src.core.logger import logger
@@ -177,9 +177,7 @@ class ChunkProcessor:
     ) -> str:
         """Procesa chunks en paralelo usando ThreadPoolExecutor."""
         max_workers = min(self.max_workers, num_chunks, 4)
-        logger.info(
-            f"Iniciando procesamiento paralelo con {max_workers} workers"
-        )
+        logger.info(f"Iniciando procesamiento paralelo con {max_workers} workers")
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_chunk = {

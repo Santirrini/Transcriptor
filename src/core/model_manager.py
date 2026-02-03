@@ -5,7 +5,8 @@ Gestiona el caché de modelos Whisper y su carga eficiente.
 """
 
 import threading
-from typing import Optional, Dict
+from typing import Dict, Optional
+
 from faster_whisper import WhisperModel
 
 from src.core.exceptions import ModelLoadError
@@ -77,9 +78,7 @@ class ModelManager:
         )
 
         try:
-            model = WhisperModel(
-                model_size, device=self.device, compute_type=self.compute_type
-            )
+            model = WhisperModel(model_size, device=self.device, compute_type=self.compute_type)
 
             with self._cache_lock:
                 self.model_cache[model_size] = model
@@ -92,9 +91,7 @@ class ModelManager:
         except (RuntimeError, OSError, MemoryError) as e:
             error_msg = f"Error al cargar el modelo Whisper '{model_size}': {str(e)}"
             logger.error(error_msg)
-            raise ModelLoadError(
-                error_msg, model_size=model_size, details={"error": str(e)}
-            )
+            raise ModelLoadError(error_msg, model_size=model_size, details={"error": str(e)})
 
     def get_current_model(self) -> Optional[WhisperModel]:
         """Obtiene el modelo actualmente cargado."""

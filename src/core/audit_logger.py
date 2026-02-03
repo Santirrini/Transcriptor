@@ -14,17 +14,17 @@ Características:
 - Panel de auditoría en UI (opcional)
 """
 
+import hashlib
 import json
 import os
 import platform
+import threading
 import uuid
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Callable
-from dataclasses import dataclass, asdict
-import threading
-import hashlib
+from typing import Any, Callable, Dict, List, Optional
 
 from src.core.logger import logger
 
@@ -250,9 +250,7 @@ class AuditLogger:
             logger.error(f"[AUDIT] Error registrando evento: {e}")
             return None
 
-    def log_file_open(
-        self, filepath: str, file_size: Optional[int] = None
-    ) -> Optional[AuditEvent]:
+    def log_file_open(self, filepath: str, file_size: Optional[int] = None) -> Optional[AuditEvent]:
         """Registra apertura de archivo."""
         return self.log_event(
             AuditEventType.FILE_OPEN,
@@ -377,10 +375,7 @@ class AuditLogger:
                         event_data = json.loads(line.strip())
 
                         # Aplicar filtro de tipo
-                        if (
-                            type_filter
-                            and event_data.get("event_type") not in type_filter
-                        ):
+                        if type_filter and event_data.get("event_type") not in type_filter:
                             continue
 
                         events.append(event_data)
@@ -449,9 +444,7 @@ class AuditLogger:
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(export_data, f, indent=2, ensure_ascii=False)
 
-            logger.info(
-                f"[AUDIT] Log exportado a: {output_path} ({len(events)} eventos)"
-            )
+            logger.info(f"[AUDIT] Log exportado a: {output_path} ({len(events)} eventos)")
             return True
 
         except Exception as e:
@@ -508,20 +501,11 @@ class AuditLogger:
                                 AuditEventType.FILE_EXPORT_PDF.value,
                             ]:
                                 stats["files_exported"] += 1
-                            elif (
-                                event_type
-                                == AuditEventType.TRANSCRIPTION_COMPLETE.value
-                            ):
+                            elif event_type == AuditEventType.TRANSCRIPTION_COMPLETE.value:
                                 stats["transcriptions"] += 1
-                            elif (
-                                event_type
-                                == AuditEventType.YOUTUBE_DOWNLOAD_COMPLETE.value
-                            ):
+                            elif event_type == AuditEventType.YOUTUBE_DOWNLOAD_COMPLETE.value:
                                 stats["youtube_downloads"]["success"] += 1
-                            elif (
-                                event_type
-                                == AuditEventType.YOUTUBE_DOWNLOAD_ERROR.value
-                            ):
+                            elif event_type == AuditEventType.YOUTUBE_DOWNLOAD_ERROR.value:
                                 stats["youtube_downloads"]["failed"] += 1
                             elif event_type.startswith("security_"):
                                 stats["security_events"] += 1
@@ -546,9 +530,7 @@ audit_logger = AuditLogger()
 
 
 # Funciones helper para uso conveniente
-def log_file_open(
-    filepath: str, file_size: Optional[int] = None
-) -> Optional[AuditEvent]:
+def log_file_open(filepath: str, file_size: Optional[int] = None) -> Optional[AuditEvent]:
     """Helper para registrar apertura de archivo."""
     return audit_logger.log_file_open(filepath, file_size)
 
@@ -578,6 +560,4 @@ def log_transcription_complete(
     duration_seconds: float, word_count: int, settings: Dict[str, Any]
 ) -> Optional[AuditEvent]:
     """Helper para registrar finalización."""
-    return audit_logger.log_transcription_complete(
-        duration_seconds, word_count, settings
-    )
+    return audit_logger.log_transcription_complete(duration_seconds, word_count, settings)

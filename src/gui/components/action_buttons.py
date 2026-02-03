@@ -1,18 +1,21 @@
 import customtkinter as ctk
+
 from .base_component import BaseComponent
+
 
 class ActionButtons(BaseComponent):
     """
     Componente que contiene los botones de exportación (TXT y PDF).
     """
+
     def __init__(self, parent, theme_manager, save_txt_callback, save_pdf_callback, **kwargs):
         super().__init__(parent, theme_manager, **kwargs)
-        
+
         self.save_txt_callback = save_txt_callback
         self.save_pdf_callback = save_pdf_callback
-        
+
         radius = self._get_border_radius("xl")
-        
+
         self.configure(
             fg_color=self._get_color("surface"),
             corner_radius=radius,
@@ -59,5 +62,5 @@ class ActionButtons(BaseComponent):
                 fg_color=self._get_color("surface_elevated"),
                 hover_color=self._get_color("border_hover"),
                 text_color=self._get_color("text"),
-                border_color=self._get_color("border")
+                border_color=self._get_color("border"),
             )

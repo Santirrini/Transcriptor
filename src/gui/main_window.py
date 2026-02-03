@@ -4,51 +4,48 @@ Diseño moderno minimalista con sistema de temas integrado.
 Mantiene toda la funcionalidad original con UI renovada.
 """
 
-import customtkinter as ctk
+import os
+import queue
+import re
+import sys
+import threading
+import time
+import tkinter as tk
 import tkinter.filedialog as filedialog
 import tkinter.messagebox as messagebox
-import threading
-import queue
-import os
-import sys
-import time
-import re
-import tkinter as tk
+
+import customtkinter as ctk
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
 
+from src.core.audit_logger import (
+    log_file_export,
+    log_file_open,
+    log_transcription_complete,
+    log_transcription_start,
+)
+from src.core.integrity_checker import (
+    IntegrityChecker,
+    integrity_checker,
+    verify_critical_files_exist,
+)
+from src.core.logger import logger
 from src.core.transcriber_engine import TranscriberEngine
-from src.gui.theme import theme_manager
-from src.gui.utils.tooltips import add_tooltip
-from src.gui.components.header import Header
-from src.gui.components.tabs import Tabs
-from src.gui.components.progress_section import ProgressSection
-from src.gui.components.fragments_section import FragmentsSection
-from src.gui.components.transcription_area import TranscriptionArea
+from src.core.update_checker import UpdateChecker, UpdateInfo
 from src.gui.components.action_buttons import ActionButtons
 from src.gui.components.footer import Footer
+from src.gui.components.fragments_section import FragmentsSection
+from src.gui.components.header import Header
+from src.gui.components.progress_section import ProgressSection
+from src.gui.components.tabs import Tabs
+from src.gui.components.transcription_area import TranscriptionArea
 from src.gui.components.update_notification import (
     UpdateNotificationManager,
     show_update_banner,
 )
-from src.core.update_checker import UpdateChecker, UpdateInfo, UpdateSeverity
-from src.core.integrity_checker import (
-    IntegrityChecker,
-    IntegrityReport,
-    verify_critical_files_exist,
-    integrity_checker,
-)
-from src.core.audit_logger import (
-    audit_logger,
-    log_file_open,
-    log_file_export,
-    log_youtube_download,
-    log_transcription_start,
-    log_transcription_complete,
-)
-from src.core.audit_logger import AuditEventType
-from src.core.logger import logger
+from src.gui.theme import theme_manager
+from src.gui.utils.tooltips import add_tooltip
 
 
 def validate_youtube_url(url: str) -> bool:
@@ -157,9 +154,7 @@ class MainWindow(ctk.CTk):
         theme_manager.add_observer(self._on_theme_change)
 
         # Inicializar modo de apariencia de customtkinter
-        ctk.set_appearance_mode(
-            "Dark" if theme_manager.current_mode == "dark" else "Light"
-        )
+        ctk.set_appearance_mode("Dark" if theme_manager.current_mode == "dark" else "Light")
 
         # Crear UI
         self._create_ui()
@@ -184,9 +179,7 @@ class MainWindow(ctk.CTk):
             all_exist, missing_files = verify_critical_files_exist()
 
             if not all_exist:
-                logger.security(
-                    f"[INTEGRITY CHECK] Archivos críticos faltantes: {missing_files}"
-                )
+                logger.security(f"[INTEGRITY CHECK] Archivos críticos faltantes: {missing_files}")
                 # Mostrar advertencia al usuario
                 self.after(1000, lambda: self._show_integrity_warning(missing_files))
                 return
@@ -196,15 +189,11 @@ class MainWindow(ctk.CTk):
 
             if not report.is_valid:
                 invalid_files = [r.file_name for r in report.results if not r.is_valid]
-                logger.security(
-                    f"[INTEGRITY CHECK] Archivos modificados: {invalid_files}"
-                )
+                logger.security(f"[INTEGRITY CHECK] Archivos modificados: {invalid_files}")
                 # Mostrar advertencia al usuario
                 self.after(
                     1000,
-                    lambda: self._show_integrity_warning(
-                        invalid_files, is_modification=True
-                    ),
+                    lambda: self._show_integrity_warning(invalid_files, is_modification=True),
                 )
             else:
                 logger.info("[INTEGRITY CHECK] Verificación de integridad exitosa")
@@ -297,9 +286,7 @@ class MainWindow(ctk.CTk):
                 self.update_notification_manager.show_update_notification(
                     update_info, on_skip=self._on_skip_version, on_dismiss=None
                 )
-                logger.info(
-                    f"Notificación de actualización mostrada: v{update_info.version}"
-                )
+                logger.info(f"Notificación de actualización mostrada: v{update_info.version}")
         except Exception as e:
             logger.error(f"Error mostrando notificación de actualización: {e}")
 
@@ -340,8 +327,6 @@ class MainWindow(ctk.CTk):
 
     def _apply_theme_to_widgets(self):
         """Aplica el tema actual a todos los widgets."""
-        mode = theme_manager.current_mode
-
         # Actualizar Canvas de Tkinter (no se actualiza automáticamente)
         if hasattr(self, "fragments_canvas"):
             self.fragments_canvas.configure(bg=self._get_hex_color("surface"))
@@ -409,9 +394,7 @@ class MainWindow(ctk.CTk):
             scrollbar_button_color=self._get_color("border"),
             scrollbar_button_hover_color=self._get_color("border_hover"),
         )
-        self.content_scroll.grid(
-            row=2, column=0, sticky="nsew", padx=spacing, pady=spacing
-        )
+        self.content_scroll.grid(row=2, column=0, sticky="nsew", padx=spacing, pady=spacing)
         self.content_scroll.grid_columnconfigure(0, weight=1)
 
         # Componentes del área de contenido
@@ -532,9 +515,7 @@ class MainWindow(ctk.CTk):
         if filepath:
             self.audio_filepath = filepath
             filename = os.path.basename(filepath)
-            self.tabs.file_label.configure(
-                text=filename, text_color=self._get_color("text")
-            )
+            self.tabs.file_label.configure(text=filename, text_color=self._get_color("text"))
             # Log audit event
             try:
                 log_file_open(filepath, os.path.getsize(filepath))
@@ -559,7 +540,7 @@ class MainWindow(ctk.CTk):
             )
 
             # Iniciar transcripción en un hilo separado para no bloquear la GUI
-            
+
             # Log audit start
             try:
                 log_transcription_start(
@@ -570,8 +551,8 @@ class MainWindow(ctk.CTk):
                         "beam_size": beam_size,
                         "vad": use_vad,
                         "diarization": diarization,
-                        "parallel": parallel
-                    }
+                        "parallel": parallel,
+                    },
                 )
             except Exception as e:
                 logger.error(f"Error logging transcription start: {e}")
@@ -750,9 +731,7 @@ class MainWindow(ctk.CTk):
             self._set_ui_state(self.UI_STATE_COMPLETED)
 
             # Mostrar mensaje con el tiempo real de transcripción
-            completion_msg = (
-                f"Transcripción completada en {self._format_time(real_time)}"
-            )
+            completion_msg = f"Transcripción completada en {self._format_time(real_time)}"
             self.progress_section.status_label.configure(text=completion_msg)
 
             # También actualizar el stats_label para que quede fijo con el tiempo final
@@ -765,7 +744,7 @@ class MainWindow(ctk.CTk):
                 log_transcription_complete(
                     real_time,
                     len(final_text.split()),
-                    {"model": self.model_var.get(), "lang": self.language_var.get()}
+                    {"model": self.model_var.get(), "lang": self.language_var.get()},
                 )
             except Exception as e:
                 logger.error(f"Error logging transcription complete: {e}")
@@ -781,9 +760,7 @@ class MainWindow(ctk.CTk):
             self.progress_section.progress_bar.set(percentage / 100)
             self.progress_section.progress_label.configure(text=f"{percentage:.1f}%")
             filename = data.get("filename", "")
-            self.progress_section.status_label.configure(
-                text=f"Descargando: {filename}"
-            )
+            self.progress_section.status_label.configure(text=f"Descargando: {filename}")
 
     def _format_time(self, seconds):
         """Formatea segundos a formato legible."""
@@ -812,9 +789,7 @@ class MainWindow(ctk.CTk):
         text = self.transcribed_text
 
         fragment_size = 500
-        fragments = [
-            text[i : i + fragment_size] for i in range(0, len(text), fragment_size)
-        ]
+        fragments = [text[i : i + fragment_size] for i in range(0, len(text), fragment_size)]
 
         self._clear_fragments()
         self.fragment_data = {}
@@ -843,9 +818,7 @@ class MainWindow(ctk.CTk):
             preview = fragment[:50].replace("\n", " ") + "..."
             add_tooltip(btn, f"Fragmento {i + 1}: {preview}", 300)
 
-        self.fragments_section.fragments_count_label.configure(
-            text=f"{len(fragments)} fragmentos"
-        )
+        self.fragments_section.fragments_count_label.configure(text=f"{len(fragments)} fragmentos")
         self.fragments_section._on_fragments_configure()
 
     def _show_fragment(self, fragment_number):
@@ -858,9 +831,7 @@ class MainWindow(ctk.CTk):
             # Resaltar botón activo
             for i, btn in enumerate(self.fragment_buttons):
                 if i + 1 == fragment_number:
-                    btn.configure(
-                        fg_color=self._get_color("primary"), text_color="white"
-                    )
+                    btn.configure(fg_color=self._get_color("primary"), text_color="white")
                 else:
                     btn.configure(
                         fg_color=self._get_color("surface_elevated"),
@@ -911,9 +882,7 @@ class MainWindow(ctk.CTk):
 
         # Insertar en la posición correcta (ordenado por índice)
         # Como CTk no permite 'pack' en posición específica fácilmente, borramos y re-empacamos si no es el último
-        if not self.fragment_buttons or num > int(
-            self.fragment_buttons[-1].cget("text")[1:]
-        ):
+        if not self.fragment_buttons or num > int(self.fragment_buttons[-1].cget("text")[1:]):
             btn.pack(side="left", padx=4)
             self.fragment_buttons.append(btn)
         else:
@@ -944,9 +913,11 @@ class MainWindow(ctk.CTk):
             self.footer.pause_button.configure(state="disabled", text="⏸ Pausar")
             self.tabs.select_file_button.configure(state="normal")
             self.tabs.transcribe_youtube_button.configure(
-                state="normal"
-                if self._validate_youtube_url(self.tabs.youtube_url_entry.get())
-                else "disabled"
+                state=(
+                    "normal"
+                    if self._validate_youtube_url(self.tabs.youtube_url_entry.get())
+                    else "disabled"
+                )
             )
             self.footer.set_transcribing(False)
 
@@ -962,9 +933,11 @@ class MainWindow(ctk.CTk):
             self.footer.set_transcribing(False)
             self.tabs.select_file_button.configure(state="normal")
             self.tabs.transcribe_youtube_button.configure(
-                state="normal"
-                if self._validate_youtube_url(self.tabs.youtube_url_entry.get())
-                else "disabled"
+                state=(
+                    "normal"
+                    if self._validate_youtube_url(self.tabs.youtube_url_entry.get())
+                    else "disabled"
+                )
             )
 
         elif state == self.UI_STATE_ERROR:
@@ -976,9 +949,11 @@ class MainWindow(ctk.CTk):
             self.action_buttons.save_pdf_button.configure(state="normal")
             self.tabs.select_file_button.configure(state="normal")
             self.tabs.transcribe_youtube_button.configure(
-                state="normal"
-                if self._validate_youtube_url(self.tabs.youtube_url_entry.get())
-                else "disabled"
+                state=(
+                    "normal"
+                    if self._validate_youtube_url(self.tabs.youtube_url_entry.get())
+                    else "disabled"
+                )
             )
 
     def toggle_pause_transcription(self):

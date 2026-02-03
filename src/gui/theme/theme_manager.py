@@ -6,7 +6,7 @@ Soporta modo claro/oscuro con cambio en runtime.
 
 import json
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from src.core.logger import logger
 
@@ -104,9 +104,7 @@ class ThemeManager:
         # Si es un diccionario con light/dark
         if isinstance(color_data, dict):
             if mode not in color_data:
-                raise KeyError(
-                    f"Modo '{mode}' no encontrado para el color '{color_name}'"
-                )
+                raise KeyError(f"Modo '{mode}' no encontrado para el color '{color_name}'")
             return color_data[mode]
 
         # Si es un string (color único para ambos modos)
@@ -131,10 +129,10 @@ class ThemeManager:
             raise KeyError(f"Color '{color_name}' no encontrado")
 
         color_data = colors[color_name]
-        
+
         if isinstance(color_data, dict):
             return (color_data.get("light", "#FFFFFF"), color_data.get("dark", "#000000"))
-        
+
         return (color_data, color_data)
 
     def get_spacing(self, spacing_name: str) -> int:
@@ -172,9 +170,7 @@ class ThemeManager:
 
         return typography
 
-    def get_component_style(
-        self, component: str, variant: str = "default"
-    ) -> Dict[str, Any]:
+    def get_component_style(self, component: str, variant: str = "default") -> Dict[str, Any]:
         """Obtiene estilos para un componente específico."""
         if "components" not in self._theme_data:
             return {}

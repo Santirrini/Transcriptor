@@ -1,9 +1,11 @@
 import customtkinter as ctk
 
+
 class BaseComponent(ctk.CTkFrame):
     """
     Clase base para componentes de la GUI que proporciona acceso fácil al ThemeManager.
     """
+
     def __init__(self, parent, theme_manager, **kwargs):
         super().__init__(parent, **kwargs)
         self.theme_manager = theme_manager

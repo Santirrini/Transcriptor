@@ -1,17 +1,21 @@
-import customtkinter as ctk
 import tkinter as tk
+
+import customtkinter as ctk
+
 from .base_component import BaseComponent
+
 
 class FragmentsSection(BaseComponent):
     """
     Componente que muestra los fragmentos (segmentos) de la transcripción
     en un contenedor con desplazamiento horizontal.
     """
+
     def __init__(self, parent, theme_manager, **kwargs):
         super().__init__(parent, theme_manager, **kwargs)
-        
+
         radius = self._get_border_radius("xl")
-        
+
         self.configure(
             fg_color=self._get_color("surface"),
             corner_radius=radius,
@@ -57,11 +61,11 @@ class FragmentsSection(BaseComponent):
 
         # Frame interior para botones
         self.fragments_inner = ctk.CTkFrame(
-            self.fragments_canvas, 
-            fg_color=self._get_hex_color("surface"), 
+            self.fragments_canvas,
+            fg_color=self._get_hex_color("surface"),
             border_width=0,
             corner_radius=0,
-            height=50
+            height=50,
         )
 
         self.fragments_window = self.fragments_canvas.create_window(
@@ -101,5 +105,5 @@ class FragmentsSection(BaseComponent):
         self.fragments_scrollbar.configure(
             fg_color=self._get_color("border_light"),
             button_color=self._get_color("border"),
-            button_hover_color=self._get_color("border_hover")
+            button_hover_color=self._get_color("border_hover"),
         )

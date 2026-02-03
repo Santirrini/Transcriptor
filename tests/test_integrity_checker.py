@@ -9,14 +9,14 @@ Estos tests verifican:
 - Funciones helper de verificación
 """
 
-import unittest
-import sys
-import os
-import tempfile
 import hashlib
 import json
+import os
+import sys
+import tempfile
+import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 # Añadir el directorio raíz del proyecto al PATH
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -24,10 +24,10 @@ sys.path.insert(0, project_root)
 
 from src.core.integrity_checker import (
     IntegrityChecker,
-    IntegrityResult,
     IntegrityReport,
-    verify_critical_files_exist,
+    IntegrityResult,
     integrity_checker,
+    verify_critical_files_exist,
 )
 
 
@@ -219,9 +219,7 @@ class TestIntegrityChecker(unittest.TestCase):
         """Verifica comportamiento cuando no hay manifest."""
         # Crear algunos archivos críticos
         (Path(self.temp_dir) / "src" / "core").mkdir(parents=True)
-        (Path(self.temp_dir) / "src" / "core" / "transcriber_engine.py").write_text(
-            "pass"
-        )
+        (Path(self.temp_dir) / "src" / "core" / "transcriber_engine.py").write_text("pass")
         (Path(self.temp_dir) / "src" / "core" / "validators.py").write_text("pass")
 
         report = self.checker.verify_integrity(manifest=None, critical_only=True)
@@ -237,9 +235,7 @@ class TestIntegrityChecker(unittest.TestCase):
         (Path(self.temp_dir) / "src" / "gui").mkdir(parents=True)
 
         # Crear los 5 archivos que quick_check verifica sin manifest
-        (Path(self.temp_dir) / "src" / "core" / "transcriber_engine.py").write_text(
-            "pass"
-        )
+        (Path(self.temp_dir) / "src" / "core" / "transcriber_engine.py").write_text("pass")
         (Path(self.temp_dir) / "src" / "core" / "audio_handler.py").write_text("pass")
         (Path(self.temp_dir) / "src" / "core" / "validators.py").write_text("pass")
         (Path(self.temp_dir) / "src" / "core" / "logger.py").write_text("pass")
@@ -340,9 +336,7 @@ class TestVerifyCriticalFilesExist(unittest.TestCase):
         """Verifica cuando todos los archivos críticos existen."""
         # Crear estructura mínima
         (Path(self.temp_dir) / "src" / "core").mkdir(parents=True)
-        (Path(self.temp_dir) / "src" / "core" / "transcriber_engine.py").write_text(
-            "pass"
-        )
+        (Path(self.temp_dir) / "src" / "core" / "transcriber_engine.py").write_text("pass")
         (Path(self.temp_dir) / "src" / "core" / "audio_handler.py").write_text("pass")
         (Path(self.temp_dir) / "src" / "core" / "validators.py").write_text("pass")
         (Path(self.temp_dir) / "src" / "core" / "logger.py").write_text("pass")
@@ -359,9 +353,7 @@ class TestVerifyCriticalFilesExist(unittest.TestCase):
         """Verifica cuando faltan algunos archivos."""
         # Crear solo algunos archivos
         (Path(self.temp_dir) / "src" / "core").mkdir(parents=True)
-        (Path(self.temp_dir) / "src" / "core" / "transcriber_engine.py").write_text(
-            "pass"
-        )
+        (Path(self.temp_dir) / "src" / "core" / "transcriber_engine.py").write_text("pass")
         # Faltan otros archivos...
 
         all_exist, missing = verify_critical_files_exist(self.temp_dir)

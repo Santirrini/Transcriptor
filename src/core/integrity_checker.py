@@ -14,15 +14,12 @@ Características:
 
 import hashlib
 import json
-import os
-import sys
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Callable
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Tuple
 
 from src.core.logger import logger
-from src.core.exceptions import SecurityError
 
 
 @dataclass
@@ -209,18 +206,14 @@ class IntegrityChecker:
             for file_path in glob.glob(search_path, recursive=True):
                 path_obj = Path(file_path)
                 if path_obj.is_file():
-                    relative_path = str(
-                        path_obj.relative_to(self.project_root)
-                    ).replace("\\", "/")
+                    relative_path = str(path_obj.relative_to(self.project_root)).replace("\\", "/")
 
                     # Evitar duplicados
                     if relative_path not in manifest:
                         file_hash = self.calculate_file_hash(path_obj)
                         if file_hash:
                             manifest[relative_path] = file_hash
-                            logger.debug(
-                                f"Hash generado: {relative_path} = {file_hash[:16]}..."
-                            )
+                            logger.debug(f"Hash generado: {relative_path} = {file_hash[:16]}...")
 
         # Guardar manifest
         output_file = Path(output_path) if output_path else self.manifest_path
@@ -253,9 +246,7 @@ class IntegrityChecker:
         """
         try:
             if not self.manifest_path.exists():
-                logger.warning(
-                    f"Manifest de integridad no encontrado: {self.manifest_path}"
-                )
+                logger.warning(f"Manifest de integridad no encontrado: {self.manifest_path}")
                 return None
 
             with open(self.manifest_path, "r", encoding="utf-8") as f:
@@ -310,9 +301,7 @@ class IntegrityChecker:
                     "No hay manifest de integridad. Verificando solo archivos críticos básicos."
                 )
             else:
-                logger.error(
-                    "No hay manifest de integridad. No se puede verificar integridad."
-                )
+                logger.error("No hay manifest de integridad. No se puede verificar integridad.")
                 return IntegrityReport(
                     timestamp=datetime.now().isoformat(),
                     total_files=0,
@@ -432,9 +421,7 @@ class IntegrityChecker:
             for file_path in self.CRITICAL_FILES[:5]:  # Solo los 5 más críticos
                 full_path = self.project_root / file_path
                 if not full_path.exists():
-                    logger.security(
-                        f"[INTEGRITY] Archivo crítico faltante: {file_path}"
-                    )
+                    logger.security(f"[INTEGRITY] Archivo crítico faltante: {file_path}")
                     all_exist = False
 
             return all_exist

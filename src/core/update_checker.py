@@ -8,17 +8,16 @@ de seguridad importantes, y gestionar la configuración de verificación automá
 
 import json
 import re
-import threading
-import urllib.request
-import urllib.error
 import ssl
+import threading
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Callable, Tuple
 from pathlib import Path
+from typing import Callable, Optional, Tuple
 
 from src.core.logger import logger
-from src.core.exceptions import ConfigurationError
 
 
 class UpdateSeverity(Enum):
@@ -122,9 +121,7 @@ class UpdateChecker:
         # Asegurar que existe el directorio de configuración
         self._last_check_file.parent.mkdir(parents=True, exist_ok=True)
 
-        logger.info(
-            f"UpdateChecker inicializado. Versión actual: {self.current_version}"
-        )
+        logger.info(f"UpdateChecker inicializado. Versión actual: {self.current_version}")
 
     def _get_current_version(self) -> str:
         """
@@ -240,10 +237,7 @@ class UpdateChecker:
                 return UpdateSeverity.SECURITY
 
         # Verificar si es feature release (contiene "feature" o secciones nuevas)
-        if any(
-            word in combined_text
-            for word in ["feature", "new", "add", "nuevo", "añade"]
-        ):
+        if any(word in combined_text for word in ["feature", "new", "add", "nuevo", "añade"]):
             return UpdateSeverity.FEATURE
 
         return UpdateSeverity.OPTIONAL
@@ -261,9 +255,7 @@ class UpdateChecker:
         try:
             # Verificar si debemos hacer la comprobación según el intervalo
             if not force and not self._should_check():
-                logger.debug(
-                    "Verificación de actualizaciones omitida (intervalo no cumplido)"
-                )
+                logger.debug("Verificación de actualizaciones omitida (intervalo no cumplido)")
                 return None
 
             # Obtener información de la última release
@@ -300,9 +292,7 @@ class UpdateChecker:
                 version=remote_version,
                 severity=severity,
                 release_url=latest_release.get("html_url", ""),
-                changelog=latest_release.get(
-                    "body", "No hay información de cambios disponible."
-                ),
+                changelog=latest_release.get("body", "No hay información de cambios disponible."),
                 published_at=latest_release.get("published_at", ""),
                 is_security_update=is_security,
             )
@@ -358,9 +348,7 @@ class UpdateChecker:
             request = urllib.request.Request(url, headers=headers)
 
             # Timeout de 10 segundos
-            with urllib.request.urlopen(
-                request, context=context, timeout=10
-            ) as response:
+            with urllib.request.urlopen(request, context=context, timeout=10) as response:
                 if response.status == 200:
                     data = json.loads(response.read().decode("utf-8"))
                     logger.debug(f"Release obtenida: {data.get('tag_name', 'unknown')}")

@@ -1,16 +1,19 @@
 import customtkinter as ctk
+
 from .base_component import BaseComponent
+
 
 class TranscriptionArea(BaseComponent):
     """
     Componente que muestra el área principal de texto transcribo
     con un control CTkTextbox.
     """
+
     def __init__(self, parent, theme_manager, **kwargs):
         super().__init__(parent, theme_manager, **kwargs)
-        
+
         radius = self._get_border_radius("xl")
-        
+
         self.configure(
             fg_color=self._get_color("surface"),
             corner_radius=radius,
@@ -70,5 +73,5 @@ class TranscriptionArea(BaseComponent):
         self.transcription_textbox.configure(
             fg_color=self._get_color("background"),
             text_color=self._get_hex_color("text"),
-            border_color=self._get_color("border")
+            border_color=self._get_color("border"),
         )

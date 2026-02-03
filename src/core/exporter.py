@@ -1,8 +1,10 @@
 import os
+
 from fpdf import FPDF
 
 from src.core.exceptions import ExportError
 from src.core.logger import logger
+
 
 class TranscriptionExporter:
     """
@@ -48,24 +50,22 @@ class TranscriptionExporter:
         try:
             pdf = FPDF()
             pdf.add_page()
-            
-            # Intentar usar una fuente que soporte más caracteres si está disponible, 
+
+            # Intentar usar una fuente que soporte más caracteres si está disponible,
             # de lo contrario, sanitizar el texto para evitar errores de codificación.
             pdf.set_font("Arial", size=12)
-            
+
             # Sanitización del texto para evitar caracteres fuera del rango de Latin-1 (fuente estándar de FPDF)
             # Reemplazamos elipsis Unicode y otros caracteres problemáticos comunes
-            safe_text = text.replace('\u2026', '...')
-            safe_text = safe_text.replace('\u201c', '"').replace('\u201d', '"')
-            safe_text = safe_text.replace('\u2018', "'").replace('\u2019', "'")
-            
+            safe_text = text.replace("\u2026", "...")
+            safe_text = safe_text.replace("\u201c", '"').replace("\u201d", '"')
+            safe_text = safe_text.replace("\u2018", "'").replace("\u2019", "'")
+
             try:
                 pdf.multi_cell(0, 10, txt=safe_text)
             except UnicodeEncodeError:
                 # Si falla, forzar a Latin-1 con reemplazo
-                pdf.multi_cell(
-                    0, 10, txt=safe_text.encode("latin-1", "replace").decode("latin-1")
-                )
+                pdf.multi_cell(0, 10, txt=safe_text.encode("latin-1", "replace").decode("latin-1"))
             pdf.output(filepath)
             logger.info(f"Transcripción guardada como PDF en: {filepath}")
         except (IOError, OSError, ValueError) as e:

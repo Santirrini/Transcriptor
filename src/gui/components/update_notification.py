@@ -7,12 +7,13 @@ feature, opcional).
 """
 
 import webbrowser
-import customtkinter as ctk
-from typing import Optional, Callable
+from typing import Callable, Optional
 
-from src.gui.components.base_component import BaseComponent
-from src.core.update_checker import UpdateInfo, UpdateSeverity
+import customtkinter as ctk
+
 from src.core.logger import logger
+from src.core.update_checker import UpdateInfo, UpdateSeverity
+from src.gui.components.base_component import BaseComponent
 
 
 class UpdateNotification(BaseComponent):
@@ -180,9 +181,7 @@ class UpdateNotification(BaseComponent):
         """Abre la página de releases en el navegador."""
         try:
             webbrowser.open(self.update_info.release_url)
-            logger.info(
-                f"Usuario abrió página de release: {self.update_info.release_url}"
-            )
+            logger.info(f"Usuario abrió página de release: {self.update_info.release_url}")
         except Exception as e:
             logger.error(f"Error al abrir navegador: {e}")
 
@@ -319,10 +318,7 @@ class UpdateNotificationManager:
         Returns:
             bool: True si hay notificación visible
         """
-        return (
-            self.current_notification is not None
-            and self.current_notification.winfo_exists()
-        )
+        return self.current_notification is not None and self.current_notification.winfo_exists()
 
 
 # Función helper para crear notificación rápida
@@ -346,8 +342,6 @@ def show_update_banner(
     Returns:
         UpdateNotification: Instancia del banner creado
     """
-    notification = UpdateNotification(
-        parent, theme_manager, update_info, on_skip=on_skip
-    )
+    notification = UpdateNotification(parent, theme_manager, update_info, on_skip=on_skip)
     notification.grid(row=grid_row, column=0, sticky="ew", padx=0, pady=0)
     return notification

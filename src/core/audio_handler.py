@@ -1,15 +1,16 @@
 import os
-import subprocess
-import re
-import tempfile
-import yt_dlp
-from pathlib import Path
-from typing import Optional, Dict, Any, List
 import queue
+import re
+import subprocess
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from src.core.exceptions import AudioProcessingError, YouTubeDownloadError, SecurityError
+import yt_dlp
+
+from src.core.audit_logger import AuditEventType, audit_logger, log_youtube_download
+from src.core.exceptions import AudioProcessingError, SecurityError
 from src.core.logger import logger
-from src.core.audit_logger import log_youtube_download, audit_logger, AuditEventType
 
 
 class AudioHandler:
@@ -94,9 +95,7 @@ class AudioHandler:
 
         # Si no, intentar usar FFmpeg del sistema
         try:
-            subprocess.run(
-                ["ffmpeg", "-version"], capture_output=True, check=True, timeout=5
-            )
+            subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True, timeout=5)
             return "ffmpeg"
         except (
             subprocess.CalledProcessError,
@@ -122,9 +121,7 @@ class AudioHandler:
                 errors="ignore",
             )
 
-            duration_match = re.search(
-                r"Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})", result.stderr
-            )
+            duration_match = re.search(r"Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})", result.stderr)
             if duration_match:
                 hours = int(duration_match.group(1))
                 minutes = int(duration_match.group(2))
@@ -152,9 +149,13 @@ class AudioHandler:
                 error_msg = f"Caracter peligroso detectado en ruta: '{char}'. Operación abortada por seguridad."
                 logger.security(error_msg)
                 audit_logger.log_security_event(
-                    AuditEventType.SECURITY_VALIDATION_FAIL, 
-                    "Path injection attempt detected", 
-                    {"char": char, "input": str(input_path), "output": str(output_path)}
+                    AuditEventType.SECURITY_VALIDATION_FAIL,
+                    "Path injection attempt detected",
+                    {
+                        "char": char,
+                        "input": str(input_path),
+                        "output": str(output_path),
+                    },
                 )
                 raise SecurityError(error_msg, violation_type="path_injection")
 
@@ -200,17 +201,17 @@ class AudioHandler:
         except subprocess.CalledProcessError as e:
             raise AudioProcessingError(
                 f"Fallo en preprocesamiento de audio: {e.stderr}",
-                filepath=input_filepath
+                filepath=input_filepath,
             )
         except subprocess.TimeoutExpired as e:
             raise AudioProcessingError(
                 "Timeout en preprocesamiento de audio (máximo 5 minutos)",
-                filepath=input_filepath
+                filepath=input_filepath,
             )
         except (OSError, IOError) as e:
             raise AudioProcessingError(
                 f"Fallo inesperado en preprocesamiento de audio: {e}",
-                filepath=input_filepath
+                filepath=input_filepath,
             )
 
     def download_audio_from_youtube(
@@ -226,9 +227,7 @@ class AudioHandler:
         project_root = os.path.dirname(os.path.dirname(current_dir))
         ffmpeg_path = os.path.join(project_root, "ffmpeg")
 
-        temp_download_name_template = os.path.join(
-            output_dir, "%(title)s_%(id)s_temp_download"
-        )
+        temp_download_name_template = os.path.join(output_dir, "%(title)s_%(id)s_temp_download")
 
         ydl_opts = {
             "format": "bestaudio/best",
@@ -278,9 +277,7 @@ class AudioHandler:
                         if video_id in f and f.lower().endswith(".wav")
                     ]
                     if possible_files:
-                        downloaded_wav_path_initial = os.path.join(
-                            output_dir, possible_files[0]
-                        )
+                        downloaded_wav_path_initial = os.path.join(output_dir, possible_files[0])
 
                 if not downloaded_wav_path_initial or not os.path.exists(
                     downloaded_wav_path_initial
@@ -308,16 +305,13 @@ class AudioHandler:
                     }
                 )
 
-            self.preprocess_audio(
-                downloaded_wav_path_initial, final_standardized_wav_path
-            )
+            self.preprocess_audio(downloaded_wav_path_initial, final_standardized_wav_path)
 
-            if (
-                downloaded_wav_path_initial != final_standardized_wav_path
-                and os.path.exists(downloaded_wav_path_initial)
+            if downloaded_wav_path_initial != final_standardized_wav_path and os.path.exists(
+                downloaded_wav_path_initial
             ):
                 os.remove(downloaded_wav_path_initial)
-            
+
             # Log success
             log_youtube_download(youtube_url, True)
             return final_standardized_wav_path

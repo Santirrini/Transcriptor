@@ -1,23 +1,24 @@
 import customtkinter as ctk
+
 from .base_component import BaseComponent
+
 
 class Footer(BaseComponent):
     """
     Componente Footer fijo que contiene el botón principal de inicio
     de transcripción y los controles de pausa/cancelación.
     """
-    def __init__(self, parent, theme_manager, start_callback, pause_callback, cancel_callback, **kwargs):
+
+    def __init__(
+        self, parent, theme_manager, start_callback, pause_callback, cancel_callback, **kwargs
+    ):
         super().__init__(parent, theme_manager, **kwargs)
-        
+
         self.start_callback = start_callback
         self.pause_callback = pause_callback
         self.cancel_callback = cancel_callback
-        
-        self.configure(
-            fg_color=self._get_color("surface"),
-            corner_radius=0,
-            height=100
-        )
+
+        self.configure(fg_color=self._get_color("surface"), corner_radius=0, height=100)
         self.grid_columnconfigure(0, weight=1)
         self.grid_propagate(True)
 
@@ -91,11 +92,10 @@ class Footer(BaseComponent):
         """Aplica el tema actual."""
         self.configure(fg_color=self._get_color("surface"))
         self.transcribe_button.configure(
-            fg_color=self._get_color("primary"),
-            hover_color=self._get_color("primary_hover")
+            fg_color=self._get_color("primary"), hover_color=self._get_color("primary_hover")
         )
         self.pause_button.configure(
             fg_color=self._get_color("surface_elevated"),
             hover_color=self._get_color("border_hover"),
-            text_color=self._get_color("text")
+            text_color=self._get_color("text"),
         )

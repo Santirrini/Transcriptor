@@ -10,29 +10,29 @@ Estos tests verifican:
 - Limpieza de logs antiguos
 """
 
-import unittest
-import sys
-import os
-import tempfile
 import json
-from pathlib import Path
+import os
+import sys
+import tempfile
+import unittest
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 # Añadir el directorio raíz del proyecto al PATH
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
 from src.core.audit_logger import (
-    AuditLogger,
     AuditEvent,
     AuditEventType,
+    AuditLogger,
     audit_logger,
-    log_file_open,
     log_file_export,
-    log_youtube_download,
-    log_transcription_start,
+    log_file_open,
     log_transcription_complete,
+    log_transcription_start,
+    log_youtube_download,
 )
 
 
@@ -72,9 +72,7 @@ class TestAuditEvent(unittest.TestCase):
 
     def test_event_to_json(self):
         """Verifica conversión a JSON."""
-        event = AuditEvent.create(
-            event_type=AuditEventType.APP_START, user_action="App started"
-        )
+        event = AuditEvent.create(event_type=AuditEventType.APP_START, user_action="App started")
 
         json_str = event.to_json()
 
@@ -97,9 +95,7 @@ class TestAuditLogger(unittest.TestCase):
         self.audit_logger.retention_days = 90
         self.audit_logger.current_session = "test_session"
         self.audit_logger.audit_dir = Path(self.temp_dir)
-        self.audit_logger.current_audit_file = (
-            self.audit_logger._get_current_audit_file()
-        )
+        self.audit_logger.current_audit_file = self.audit_logger._get_current_audit_file()
 
     def tearDown(self):
         """Limpieza después de cada test."""
@@ -152,9 +148,7 @@ class TestAuditLogger(unittest.TestCase):
         )
 
         self.assertIsNotNone(event)
-        self.assertEqual(
-            event.event_type, AuditEventType.YOUTUBE_DOWNLOAD_COMPLETE.value
-        )
+        self.assertEqual(event.event_type, AuditEventType.YOUTUBE_DOWNLOAD_COMPLETE.value)
         self.assertTrue(event.details["success"])
 
     def test_log_youtube_download_failure(self):
@@ -209,9 +203,7 @@ class TestAuditLogger(unittest.TestCase):
         """Verifica filtrado de eventos por tipo."""
         # Crear eventos de diferentes tipos
         self.audit_logger.log_event(AuditEventType.FILE_OPEN, "File opened")
-        self.audit_logger.log_event(
-            AuditEventType.TRANSCRIPTION_START, "Transcription started"
-        )
+        self.audit_logger.log_event(AuditEventType.TRANSCRIPTION_START, "Transcription started")
         self.audit_logger.log_event(AuditEventType.FILE_OPEN, "Another file opened")
 
         # Filtrar solo FILE_OPEN
@@ -258,12 +250,8 @@ class TestAuditLogger(unittest.TestCase):
         # Crear eventos de diferentes tipos
         self.audit_logger.log_event(AuditEventType.FILE_OPEN, "File 1")
         self.audit_logger.log_event(AuditEventType.FILE_OPEN, "File 2")
-        self.audit_logger.log_event(
-            AuditEventType.TRANSCRIPTION_COMPLETE, "Transcription done"
-        )
-        self.audit_logger.log_event(
-            AuditEventType.YOUTUBE_DOWNLOAD_COMPLETE, "Download done"
-        )
+        self.audit_logger.log_event(AuditEventType.TRANSCRIPTION_COMPLETE, "Transcription done")
+        self.audit_logger.log_event(AuditEventType.YOUTUBE_DOWNLOAD_COMPLETE, "Download done")
 
         stats = self.audit_logger.get_statistics(days=30)
 
@@ -299,9 +287,7 @@ class TestAuditLogger(unittest.TestCase):
     def test_rotate_file_if_needed(self):
         """Verifica rotación de archivo cuando excede tamaño máximo."""
         # Crear archivo grande
-        self.audit_logger.current_audit_file.write_text(
-            "x" * (self.audit_logger.MAX_FILE_SIZE + 1)
-        )
+        self.audit_logger.current_audit_file.write_text("x" * (self.audit_logger.MAX_FILE_SIZE + 1))
 
         original_file = self.audit_logger.current_audit_file
 
@@ -331,9 +317,7 @@ class TestAuditLoggerHelpers(unittest.TestCase):
 
         result = log_file_export("/path/to/output.txt", "txt", 2048)
 
-        mock_logger.log_file_export.assert_called_once_with(
-            "/path/to/output.txt", "txt", 2048
-        )
+        mock_logger.log_file_export.assert_called_once_with("/path/to/output.txt", "txt", 2048)
 
     @patch("src.core.audit_logger.audit_logger")
     def test_log_youtube_download_helper(self, mock_logger):
@@ -366,9 +350,7 @@ class TestAuditLoggerHelpers(unittest.TestCase):
         settings = {"model": "small"}
         result = log_transcription_complete(120.5, 150, settings)
 
-        mock_logger.log_transcription_complete.assert_called_once_with(
-            120.5, 150, settings
-        )
+        mock_logger.log_transcription_complete.assert_called_once_with(120.5, 150, settings)
 
 
 class TestAuditLoggerSingleton(unittest.TestCase):

@@ -1,24 +1,32 @@
 import customtkinter as ctk
+
 from .base_component import BaseComponent
+
 
 class Header(BaseComponent):
     """
     Componente Header que contiene el título, el botón de cambio de tema
     y el selector de modo de interfaz (Simple/Avanzado).
     """
-    def __init__(self, parent, theme_manager, ui_mode_var, theme_var, toggle_theme_callback, on_mode_change_callback, **kwargs):
+
+    def __init__(
+        self,
+        parent,
+        theme_manager,
+        ui_mode_var,
+        theme_var,
+        toggle_theme_callback,
+        on_mode_change_callback,
+        **kwargs
+    ):
         super().__init__(parent, theme_manager, **kwargs)
-        
+
         self.toggle_theme_callback = toggle_theme_callback
         self.on_mode_change_callback = on_mode_change_callback
         self.ui_mode = ui_mode_var
         self.theme_var = theme_var
-        
-        self.configure(
-            fg_color=self._get_color("surface"),
-            corner_radius=0,
-            height=100
-        )
+
+        self.configure(fg_color=self._get_color("surface"), corner_radius=0, height=100)
         self.grid_columnconfigure(0, weight=1)
         self.grid_propagate(True)
 
@@ -92,19 +100,19 @@ class Header(BaseComponent):
         """Aplica el tema actual a los widgets del header."""
         mode = self.theme_manager.current_mode
         is_dark = mode == "dark"
-        
+
         self.configure(fg_color=self._get_color("surface"))
         self.title_label.configure(text_color=self._get_color("text"))
         self.subtitle_label.configure(text_color=self._get_color("text_secondary"))
         self.mode_label.configure(text_color=self._get_color("text_secondary"))
-        
+
         self.theme_switch.configure(text="🌙 Oscuro" if is_dark else "☀️ Claro")
-        
+
         self.mode_switch.configure(
             selected_color=self._get_color("primary"),
             selected_hover_color=self._get_color("primary_hover"),
             unselected_color=self._get_color("surface_elevated"),
             unselected_hover_color=self._get_color("border_hover"),
             text_color=self._get_color("text"),
-            text_color_disabled=self._get_color("text_muted")
+            text_color_disabled=self._get_color("text_muted"),
         )

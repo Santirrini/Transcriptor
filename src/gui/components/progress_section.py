@@ -1,16 +1,19 @@
 import customtkinter as ctk
+
 from .base_component import BaseComponent
+
 
 class ProgressSection(BaseComponent):
     """
     Componente que muestra el estado actual, la barra de progreso
     y las estadísticas de la trascripción.
     """
+
     def __init__(self, parent, theme_manager, **kwargs):
         super().__init__(parent, theme_manager, **kwargs)
-        
+
         radius = self._get_border_radius("xl")
-        
+
         self.configure(
             fg_color=self._get_color("surface"),
             corner_radius=radius,
@@ -69,7 +72,7 @@ class ProgressSection(BaseComponent):
         """Actualiza la barra de progreso y los labels."""
         self.progress_bar.set(percentage / 100)
         self.progress_label.configure(text=f"{int(percentage)}%")
-        
+
         if status_text is not None:
             self.status_label.configure(text=status_text)
         if stats_text is not None:
@@ -81,7 +84,6 @@ class ProgressSection(BaseComponent):
         self.status_label.configure(text_color=self._get_color("text"))
         self.stats_label.configure(text_color=self._get_color("text_secondary"))
         self.progress_bar.configure(
-            fg_color=self._get_color("border_light"),
-            progress_color=self._get_color("primary")
+            fg_color=self._get_color("border_light"), progress_color=self._get_color("primary")
         )
         self.progress_label.configure(text_color=self._get_color("primary"))

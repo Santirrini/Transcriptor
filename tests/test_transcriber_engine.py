@@ -1,7 +1,7 @@
-import unittest
-import sys
 import os
 import queue  # Importar el módulo queue
+import sys
+import unittest
 import unittest.mock  # Importar unittest.mock para usar patch
 
 # Añadir el directorio raíz del proyecto al PATH para importaciones relativas
@@ -51,12 +51,8 @@ class TestTranscriberEngine(unittest.TestCase):
     #     # se llama solo una vez.
 
     @unittest.mock.patch("src.core.transcriber_engine.TranscriberEngine._load_model")
-    @unittest.mock.patch(
-        "src.core.transcriber_engine.TranscriberEngine._perform_transcription"
-    )
-    def test_transcribe_audio_threaded(
-        self, mock_perform_transcription, mock_load_model
-    ):
+    @unittest.mock.patch("src.core.transcriber_engine.TranscriberEngine._perform_transcription")
+    def test_transcribe_audio_threaded(self, mock_perform_transcription, mock_load_model):
         """
         Verifica que transcribe_audio_threaded inicia un hilo y comunica resultados via queue.
         """
@@ -112,9 +108,7 @@ class TestTranscriberEngine(unittest.TestCase):
         self.assertIn("Cargando modelo", progress_messages[0]["data"])
         self.assertIn("Iniciando transcripción", progress_messages[1]["data"])
 
-    @unittest.mock.patch(
-        "src.core.transcriber_engine.TranscriberEngine._perform_transcription"
-    )
+    @unittest.mock.patch("src.core.transcriber_engine.TranscriberEngine._perform_transcription")
     def test_transcribe_audio_threaded_error_handling(self, mock_perform_transcription):
         """
         Verifica que transcribe_audio_threaded maneja errores y los comunica via queue.
@@ -138,9 +132,7 @@ class TestTranscriberEngine(unittest.TestCase):
         while not result_queue.empty():
             messages.append(result_queue.get())
 
-        self.assertEqual(
-            len(messages), 3
-        )  # Esperamos 3 mensajes: progreso, progreso, error
+        self.assertEqual(len(messages), 3)  # Esperamos 3 mensajes: progreso, progreso, error
 
         # Verificar el primer mensaje de progreso (cargando modelo)
         self.assertEqual(messages[0]["type"], "progress")
@@ -270,10 +262,7 @@ class TestTranscriberEngine(unittest.TestCase):
                 "No se encontró mensaje 'new_segment' en la cola.",
             )
             self.assertTrue(
-                any(
-                    msg.get("type") == "transcription_finished"
-                    for msg in messages_in_queue
-                ),
+                any(msg.get("type") == "transcription_finished" for msg in messages_in_queue),
                 "No se encontró mensaje 'transcription_finished' en la cola.",
             )
             # El texto de los segmentos se verifica en test_perform_transcription_generates_fragments
@@ -350,9 +339,7 @@ class TestTranscriberEngine(unittest.TestCase):
         # Usar tempfile para crear un archivo temporal seguro con extensión .pdf
         import tempfile
 
-        with tempfile.NamedTemporaryFile(
-            mode="w+", suffix=".pdf", delete=False
-        ) as tmp_file:
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".pdf", delete=False) as tmp_file:
             tmp_filepath = tmp_file.name
 
         try:
@@ -376,9 +363,7 @@ class TestTranscriberEngine(unittest.TestCase):
     @unittest.mock.patch("src.core.transcriber_engine.WhisperModel")
     @unittest.mock.patch("os.path.exists")
     @unittest.skip("Saltado temporalmente debido a problemas persistentes con el mock")
-    def test_perform_transcription_generates_fragments(
-        self, mock_os_path_exists, MockWhisperModel
-    ):
+    def test_perform_transcription_generates_fragments(self, mock_os_path_exists, MockWhisperModel):
         """
         Verifica que _perform_transcription genera mensajes 'fragment_completed'
         con el texto y tiempos correctos.
@@ -392,9 +377,7 @@ class TestTranscriberEngine(unittest.TestCase):
         # Simular segmentos de transcripción que suman más de 30 minutos
         # Cada segmento tiene 10 minutos de duración para simplificar
         mock_segments = [
-            unittest.mock.Mock(
-                text="Segmento 1.", duration=600.0, start=0.0, end=600.0
-            ),  # 10 min
+            unittest.mock.Mock(text="Segmento 1.", duration=600.0, start=0.0, end=600.0),  # 10 min
             unittest.mock.Mock(
                 text="Segmento 2.", duration=600.0, start=600.0, end=1200.0
             ),  # 10 min
@@ -414,9 +397,7 @@ class TestTranscriberEngine(unittest.TestCase):
                 text="Segmento 7.", duration=600.0, start=3600.0, end=4200.0
             ),  # 10 min - Último fragmento
         ]
-        mock_info = (
-            unittest.mock.Mock()
-        )  # Mock para el objeto info retornado por transcribe
+        mock_info = unittest.mock.Mock()  # Mock para el objeto info retornado por transcribe
         mock_model_instance.transcribe.return_value = (mock_segments, mock_info)
 
         engine = TranscriberEngine()
@@ -424,8 +405,8 @@ class TestTranscriberEngine(unittest.TestCase):
         transcription_queue = queue.Queue()
 
         # Mock de get_file_size para evitar el error en _should_use_chunked_processing
-        with unittest.mock.patch.object(engine, '_get_file_size', return_value=1000):
-            with unittest.mock.patch('os.path.exists', return_value=True):
+        with unittest.mock.patch.object(engine, "_get_file_size", return_value=1000):
+            with unittest.mock.patch("os.path.exists", return_value=True):
                 # Ejecutar la función a probar
                 engine._perform_transcription(
                     test_audio_path,

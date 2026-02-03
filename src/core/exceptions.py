@@ -76,9 +76,7 @@ class ConfigurationError(TranscriptorError):
 class TranscriptionCancelledError(TranscriptorError):
     """Excepción lanzada cuando el usuario cancela la transcripción."""
 
-    def __init__(
-        self, message: str = "Transcripción cancelada por el usuario", **kwargs
-    ):
+    def __init__(self, message: str = "Transcripción cancelada por el usuario", **kwargs):
         super().__init__(message, error_code="CANCELLED", **kwargs)
 
 
