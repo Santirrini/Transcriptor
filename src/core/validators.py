@@ -75,11 +75,53 @@ class InputValidator:
         r"^youtube\.com/watch\?v=[a-zA-Z0-9_-]+",
     ]
 
+    # Patrones de Instagram
+    INSTAGRAM_PATTERNS = [
+        r"^https?://(www\.)?instagram\.com/reel/[a-zA-Z0-9_-]+",
+        r"^https?://(www\.)?instagram\.com/p/[a-zA-Z0-9_-]+",
+        r"^https?://(www\.)?instagram\.com/tv/[a-zA-Z0-9_-]+",
+        r"^https?://(www\.)?instagram\.com/reels/[a-zA-Z0-9_-]+",
+    ]
+
+    # Patrones de Facebook
+    FACEBOOK_PATTERNS = [
+        r"^https?://(www\.)?facebook\.com/watch/\?v=[0-9]+",
+        r"^https?://(www\.)?facebook\.com/[a-zA-Z0-9._-]+/videos/[0-9]+",
+        r"^https?://(www\.)?fb\.watch/[a-zA-Z0-9_-]+",
+        r"^https?://(www\.)?facebook\.com/reel/[0-9]+",
+        r"^https?://(www\.)?facebook\.com/share/[a-zA-Z0-9_/]+",
+    ]
+
+    # Patrones de TikTok
+    TIKTOK_PATTERNS = [
+        r"^https?://(www\.)?tiktok\.com/@[a-zA-Z0-9._-]+/video/[0-9]+",
+        r"^https?://(www\.)?vm\.tiktok\.com/[a-zA-Z0-9]+",
+        r"^https?://(www\.)?tiktok\.com/t/[a-zA-Z0-9]+",
+    ]
+
+    # Patrones de Twitter/X
+    TWITTER_PATTERNS = [
+        r"^https?://(www\.)?twitter\.com/[a-zA-Z0-9_]+/status/[0-9]+",
+        r"^https?://(www\.)?x\.com/[a-zA-Z0-9_]+/status/[0-9]+",
+        r"^https?://(www\.)?t\.co/[a-zA-Z0-9]+",
+    ]
+
+    # Todos los patrones de video soportados
+    VIDEO_URL_PATTERNS = (
+        YOUTUBE_PATTERNS
+        + INSTAGRAM_PATTERNS
+        + FACEBOOK_PATTERNS
+        + TIKTOK_PATTERNS
+        + TWITTER_PATTERNS
+    )
+
     # Protocolos peligrosos
     DANGEROUS_PROTOCOLS = ["file://", "javascript:", "data:", "vbscript:"]
 
     @classmethod
-    def validate_file_size(cls, filepath: str, max_size: Optional[int] = None) -> Tuple[bool, str]:
+    def validate_file_size(
+        cls, filepath: str, max_size: Optional[int] = None
+    ) -> Tuple[bool, str]:
         """
         Valida que el tamaño del archivo esté dentro de los límites aceptables.
 
@@ -110,7 +152,9 @@ class InputValidator:
         if file_size > max_allowed:
             size_mb = file_size / (1024 * 1024)
             max_mb = max_allowed / (1024 * 1024)
-            error_msg = f"Archivo demasiado grande: {size_mb:.1f}MB (máximo: {max_mb:.1f}MB)"
+            error_msg = (
+                f"Archivo demasiado grande: {size_mb:.1f}MB (máximo: {max_mb:.1f}MB)"
+            )
             logger.warning(error_msg)
             return False, error_msg
 
@@ -196,6 +240,61 @@ class InputValidator:
         return False
 
     @classmethod
+    def validate_video_url(cls, url: str) -> tuple[bool, str]:
+        """
+        Valida que una URL sea de una plataforma de video soportada.
+
+        Previene SSRF y ejecución de URLs no válidas o maliciosas.
+        Soporta: YouTube, Instagram, Facebook, TikTok, Twitter/X
+
+        Args:
+            url: URL a validar
+
+        Returns:
+            tuple[bool, str]: (es_válida, nombre_de_plataforma o mensaje_de_error)
+        """
+        if not url or not isinstance(url, str):
+            return False, "URL vacía o inválida"
+
+        url_clean = url.strip().lower()
+
+        # Rechazar protocolos peligrosos
+        for protocol in cls.DANGEROUS_PROTOCOLS:
+            if url_clean.startswith(protocol):
+                logger.security(f"Protocolo peligroso detectado: {protocol}")
+                return False, f"Protocolo no permitido: {protocol}"
+
+        # Verificar patrones de YouTube
+        for pattern in cls.YOUTUBE_PATTERNS:
+            if re.match(pattern, url_clean, re.IGNORECASE):
+                return True, "YouTube"
+
+        # Verificar patrones de Instagram
+        for pattern in cls.INSTAGRAM_PATTERNS:
+            if re.match(pattern, url_clean, re.IGNORECASE):
+                return True, "Instagram"
+
+        # Verificar patrones de Facebook
+        for pattern in cls.FACEBOOK_PATTERNS:
+            if re.match(pattern, url_clean, re.IGNORECASE):
+                return True, "Facebook"
+
+        # Verificar patrones de TikTok
+        for pattern in cls.TIKTOK_PATTERNS:
+            if re.match(pattern, url_clean, re.IGNORECASE):
+                return True, "TikTok"
+
+        # Verificar patrones de Twitter/X
+        for pattern in cls.TWITTER_PATTERNS:
+            if re.match(pattern, url_clean, re.IGNORECASE):
+                return True, "Twitter/X"
+
+        return (
+            False,
+            "URL no reconocida. Plataformas soportadas: YouTube, Instagram, Facebook, TikTok, Twitter/X",
+        )
+
+    @classmethod
     def sanitize_text_for_export(cls, text: str) -> str:
         """
         Sanitiza texto para exportación segura a PDF/TXT.
@@ -255,7 +354,9 @@ class InputValidator:
         return Path(path).resolve()
 
     @classmethod
-    def validate_environment_token(cls, token: str, min_length: int = 10) -> Tuple[bool, str]:
+    def validate_environment_token(
+        cls, token: str, min_length: int = 10
+    ) -> Tuple[bool, str]:
         """
         Valida un token de entorno (como HUGGING_FACE_HUB_TOKEN).
 

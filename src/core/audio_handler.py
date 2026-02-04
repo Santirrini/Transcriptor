@@ -95,7 +95,9 @@ class AudioHandler:
 
         # Si no, intentar usar FFmpeg del sistema
         try:
-            subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True, timeout=5)
+            subprocess.run(
+                ["ffmpeg", "-version"], capture_output=True, check=True, timeout=5
+            )
             return "ffmpeg"
         except (
             subprocess.CalledProcessError,
@@ -121,7 +123,9 @@ class AudioHandler:
                 errors="ignore",
             )
 
-            duration_match = re.search(r"Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})", result.stderr)
+            duration_match = re.search(
+                r"Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})", result.stderr
+            )
             if duration_match:
                 hours = int(duration_match.group(1))
                 minutes = int(duration_match.group(2))
@@ -214,11 +218,23 @@ class AudioHandler:
                 filepath=input_filepath,
             )
 
-    def download_audio_from_youtube(
-        self, youtube_url: str, output_dir: Optional[str] = None
+    def download_audio_from_url(
+        self,
+        video_url: str,
+        output_dir: Optional[str] = None,
+        platform_name: str = "Video",
     ) -> Optional[str]:
         """
-        Descarga el audio de una URL de YouTube y lo convierte a formato WAV estándar.
+        Descarga el audio de una URL de video (YouTube, Instagram, Facebook, TikTok, Twitter/X)
+        y lo convierte a formato WAV estándar.
+
+        Args:
+            video_url: URL del video a descargar
+            output_dir: Directorio de salida para el archivo descargado
+            platform_name: Nombre de la plataforma (para mensajes)
+
+        Returns:
+            Ruta al archivo WAV estandarizado o None si falla
         """
         if not output_dir:
             output_dir = tempfile.gettempdir()
@@ -227,7 +243,9 @@ class AudioHandler:
         project_root = os.path.dirname(os.path.dirname(current_dir))
         ffmpeg_path = os.path.join(project_root, "ffmpeg")
 
-        temp_download_name_template = os.path.join(output_dir, "%(title)s_%(id)s_temp_download")
+        temp_download_name_template = os.path.join(
+            output_dir, "%(title)s_%(id)s_temp_download"
+        )
 
         ydl_opts = {
             "format": "bestaudio/best",
@@ -248,12 +266,12 @@ class AudioHandler:
                 self.gui_queue.put(
                     {
                         "type": "status_update",
-                        "data": f"Descargando de YouTube: {youtube_url}",
+                        "data": f"Descargando de {platform_name}: {video_url}",
                     }
                 )
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info_dict = ydl.extract_info(youtube_url, download=True)
+                info_dict = ydl.extract_info(video_url, download=True)
                 base_filename = ydl.prepare_filename(info_dict)
 
                 # Logic to find the downloaded wav file
@@ -277,7 +295,9 @@ class AudioHandler:
                         if video_id in f and f.lower().endswith(".wav")
                     ]
                     if possible_files:
-                        downloaded_wav_path_initial = os.path.join(output_dir, possible_files[0])
+                        downloaded_wav_path_initial = os.path.join(
+                            output_dir, possible_files[0]
+                        )
 
                 if not downloaded_wav_path_initial or not os.path.exists(
                     downloaded_wav_path_initial
@@ -305,32 +325,53 @@ class AudioHandler:
                     }
                 )
 
-            self.preprocess_audio(downloaded_wav_path_initial, final_standardized_wav_path)
+            self.preprocess_audio(
+                downloaded_wav_path_initial, final_standardized_wav_path
+            )
 
-            if downloaded_wav_path_initial != final_standardized_wav_path and os.path.exists(
-                downloaded_wav_path_initial
+            if (
+                downloaded_wav_path_initial != final_standardized_wav_path
+                and os.path.exists(downloaded_wav_path_initial)
             ):
                 os.remove(downloaded_wav_path_initial)
 
             # Log success
-            log_youtube_download(youtube_url, True)
+            log_youtube_download(video_url, True)
             return final_standardized_wav_path
 
         except (yt_dlp.utils.DownloadError, OSError, IOError) as e:
-            error_msg = f"Error en descarga de YouTube: {str(e)}"
+            error_msg = f"Error en descarga de {platform_name}: {str(e)}"
             logger.error(error_msg)
-            log_youtube_download(youtube_url, False, error_msg)
+            log_youtube_download(video_url, False, error_msg)
             if self.gui_queue:
                 self.gui_queue.put({"type": "error", "data": error_msg})
             return None
         except Exception as e:
             # Catch-all para errores inesperados de yt-dlp
-            error_msg = f"Error inesperado en descarga de YouTube: {str(e)}"
+            error_msg = f"Error inesperado en descarga de {platform_name}: {str(e)}"
             logger.error(error_msg)
-            log_youtube_download(youtube_url, False, error_msg)
+            log_youtube_download(video_url, False, error_msg)
             if self.gui_queue:
                 self.gui_queue.put({"type": "error", "data": error_msg})
             return None
+
+    def download_audio_from_youtube(
+        self, youtube_url: str, output_dir: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Método legacy para compatibilidad hacia atrás.
+        Usa download_audio_from_url internamente.
+
+        Args:
+            youtube_url: URL de YouTube
+            output_dir: Directorio de salida
+
+        Returns:
+            Ruta al archivo WAV estandarizado o None si falla
+        """
+        return self.download_audio_from_url(
+            youtube_url, output_dir, platform_name="YouTube"
+        )
 
     def _yt_dlp_progress_hook(self, d: Dict[str, Any]):
         """Hook para el progreso de descarga de yt-dlp."""

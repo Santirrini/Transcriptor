@@ -470,11 +470,11 @@ class MainWindow(ctk.CTk):
             self.ai_model_var,
             self.ai_key_var,
             self.select_audio_file,
-            self.start_youtube_transcription_thread,
+            self.start_video_url_transcription_thread,
             self.start_microphone_recording,
             self.stop_microphone_recording,
             self._on_tab_change,
-            self._validate_youtube_input,
+            self._validate_video_url_input,
             self.test_ai_connection,
         )
         self.tabs.grid(row=0, column=0, sticky="ew", pady=(0, 16))
@@ -538,20 +538,32 @@ class MainWindow(ctk.CTk):
         theme_manager.current_mode = new_mode
         self.theme_switch.configure(text="🌙 Oscuro" if is_dark else "☀️ Claro")
 
-    def _validate_youtube_input(self, event=None):
-        """Valida la URL de YouTube en tiempo real."""
+    def _validate_video_url_input(self, event=None):
+        """Valida la URL de video en tiempo real (YouTube, Instagram, Facebook, TikTok, Twitter/X)."""
         # Acceder a los widgets a través del componente Tabs
-        if hasattr(self, "tabs") and hasattr(self.tabs, "youtube_url_entry"):
-            url = self.tabs.youtube_url_entry.get()
-            if self._validate_youtube_url(url):
-                self.tabs.transcribe_youtube_button.configure(state="normal")
+        if hasattr(self, "tabs") and hasattr(self.tabs, "url_video_entry"):
+            url = self.tabs.url_video_entry.get()
+            is_valid, _ = self._validate_video_url(url)
+            if is_valid:
+                self.tabs.transcribe_url_button.configure(state="normal")
             else:
-                self.tabs.transcribe_youtube_button.configure(state="disabled")
+                self.tabs.transcribe_url_button.configure(state="disabled")
+
+    def _validate_video_url(self, url):
+        """Valida si la URL es de una plataforma de video soportada."""
+        from src.core.validators import InputValidator
+
+        return InputValidator.validate_video_url(url)
+
+    # Métodos legacy para compatibilidad hacia atrás
+    def _validate_youtube_input(self, event=None):
+        """Alias para _validate_video_url_input (compatibilidad)."""
+        return self._validate_video_url_input(event)
 
     def _validate_youtube_url(self, url):
-        """Valida si la URL es de YouTube."""
-        pattern = r"(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/(watch\?v=|embed/|v/|\.\w+\?v=)?([\w-]{11})"
-        return bool(re.match(pattern, url))
+        """Alias para _validate_video_url (compatibilidad)."""
+        is_valid, _ = self._validate_video_url(url)
+        return is_valid
 
     def _get_transcription_params(self):
         """Retorna los parámetros de transcripción."""
@@ -659,13 +671,14 @@ class MainWindow(ctk.CTk):
             self.is_transcribing = True
             self._set_ui_state(self.UI_STATE_TRANSCRIBING)
 
-        elif "YouTube" in current_tab:
-            self.start_youtube_transcription_thread()
+        elif "URL de Video" in current_tab:
+            self.start_video_url_transcription_thread()
 
-    def start_youtube_transcription_thread(self):
-        """Inicia transcripción desde YouTube."""
-        url = self.tabs.youtube_url_entry.get()
-        if not url or not self._validate_youtube_url(url):
+    def start_video_url_transcription_thread(self):
+        """Inicia transcripción desde URL de video (YouTube, Instagram, Facebook, TikTok, Twitter/X)."""
+        url = self.tabs.url_video_entry.get()
+        is_valid, platform = self._validate_video_url(url)
+        if not url or not is_valid:
             return
 
         self._prepare_for_transcription()

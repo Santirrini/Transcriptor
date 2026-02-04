@@ -32,11 +32,11 @@ class Tabs(BaseComponent):
         ai_model_var,
         ai_key_var,
         select_file_callback,
-        start_youtube_callback,
+        start_video_url_callback,
         start_mic_callback,
         stop_mic_callback,
         on_tab_change_callback,
-        validate_youtube_callback,
+        validate_video_url_callback,
         test_ai_callback,
         **kwargs,
     ):
@@ -59,12 +59,16 @@ class Tabs(BaseComponent):
 
         # Callbacks
         self.select_file_callback = select_file_callback
-        self.start_youtube_callback = start_youtube_callback
+        self.start_video_url_callback = start_video_url_callback
         self.start_mic_callback = start_mic_callback
         self.stop_mic_callback = stop_mic_callback
         self.on_tab_change_callback = on_tab_change_callback
-        self.validate_youtube_callback = validate_youtube_callback
+        self.validate_video_url_callback = validate_video_url_callback
         self.test_ai_callback = test_ai_callback
+
+        # Callbacks legacy para compatibilidad
+        self.start_youtube_callback = start_video_url_callback
+        self.validate_youtube_callback = validate_video_url_callback
 
         radius = self._get_border_radius("xl")
 
@@ -81,7 +85,7 @@ class Tabs(BaseComponent):
             self,
             values=[
                 "    Archivo Local    ",
-                "    YouTube    ",
+                "    URL de Video    ",
                 "    Micrófono    ",
                 "    Configuración    ",
             ],
@@ -123,7 +127,7 @@ class Tabs(BaseComponent):
         # Ocultar todos los frames de contenido
         for frame in [
             self.file_frame,
-            self.youtube_frame,
+            self.url_video_frame,
             self.mic_frame,
             self.config_frame,
         ]:
@@ -132,8 +136,8 @@ class Tabs(BaseComponent):
         # Mostrar el frame correspondiente al tab seleccionado
         if tab_name == "    Archivo Local    ":
             self.file_frame.grid(row=0, column=0, sticky="nsew")
-        elif tab_name == "    YouTube    ":
-            self.youtube_frame.grid(row=0, column=0, sticky="nsew")
+        elif tab_name == "    URL de Video    ":
+            self.url_video_frame.grid(row=0, column=0, sticky="nsew")
         elif tab_name == "    Micrófono    ":
             self.mic_frame.grid(row=0, column=0, sticky="nsew")
         elif tab_name == "    Configuración    ":
@@ -196,19 +200,20 @@ class Tabs(BaseComponent):
         )
         formats_label.grid(row=2, column=0, sticky="w")
 
-    def _create_youtube_tab(self):
-        self.youtube_frame = ctk.CTkFrame(
+    def _create_url_video_tab(self):
+        """Crea la pestaña para URLs de video (YouTube, Instagram, Facebook, TikTok, Twitter/X)."""
+        self.url_video_frame = ctk.CTkFrame(
             self.tab_content_frame, fg_color="transparent"
         )
-        self.youtube_frame.grid_columnconfigure(0, weight=1)
+        self.url_video_frame.grid_columnconfigure(0, weight=1)
 
-        container = ctk.CTkFrame(self.youtube_frame, fg_color="transparent")
+        container = ctk.CTkFrame(self.url_video_frame, fg_color="transparent")
         container.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
         container.grid_columnconfigure(0, weight=1)
 
         instruction = ctk.CTkLabel(
             container,
-            text="Introduce la URL de un video de YouTube",
+            text="Introduce la URL de un video",
             font=("Segoe UI", 14),
             text_color=self._get_color("text_secondary"),
         )
@@ -224,19 +229,19 @@ class Tabs(BaseComponent):
         url_frame.grid(row=1, column=0, sticky="ew", pady=(0, 16))
         url_frame.grid_columnconfigure(0, weight=1)
 
-        self.youtube_url_entry = ctk.CTkEntry(
+        self.url_video_entry = ctk.CTkEntry(
             url_frame,
-            placeholder_text="https://www.youtube.com/watch?v=...",
-            font=("Segoe UI", 13),
+            placeholder_text="https://youtube.com/... | https://instagram.com/reel/... | https://facebook.com/... | https://tiktok.com/... | https://x.com/...",
+            font=("Segoe UI", 11),
             height=44,
             fg_color="transparent",
             border_width=0,
             text_color=self._get_color("text"),
         )
-        self.youtube_url_entry.grid(row=0, column=0, padx=16, pady=12, sticky="ew")
-        self.youtube_url_entry.bind("<KeyRelease>", self.validate_youtube_callback)
+        self.url_video_entry.grid(row=0, column=0, padx=16, pady=12, sticky="ew")
+        self.url_video_entry.bind("<KeyRelease>", self.validate_video_url_callback)
 
-        self.transcribe_youtube_button = ctk.CTkButton(
+        self.transcribe_url_button = ctk.CTkButton(
             url_frame,
             text="Descargar y Transcribir",
             font=("Segoe UI", 13, "bold"),
@@ -246,10 +251,30 @@ class Tabs(BaseComponent):
             hover_color=self._get_color("secondary_hover"),
             text_color="white",
             corner_radius=10,
-            command=self.start_youtube_callback,
+            command=self.start_video_url_callback,
             state="disabled",
         )
-        self.transcribe_youtube_button.grid(row=0, column=1, padx=16, pady=12)
+        self.transcribe_url_button.grid(row=0, column=1, padx=16, pady=12)
+
+        # Info de plataformas soportadas
+        platforms_frame = ctk.CTkFrame(container, fg_color="transparent")
+        platforms_frame.grid(row=2, column=0, sticky="w", pady=(0, 8))
+
+        platforms_label = ctk.CTkLabel(
+            platforms_frame,
+            text="Plataformas soportadas:",
+            font=("Segoe UI", 11, "bold"),
+            text_color=self._get_color("text_secondary"),
+        )
+        platforms_label.pack(side="left")
+
+        platforms_icons = ctk.CTkLabel(
+            platforms_frame,
+            text="YouTube • Instagram • Facebook • TikTok • Twitter/X",
+            font=("Segoe UI", 11),
+            text_color=self._get_color("text_muted"),
+        )
+        platforms_icons.pack(side="left", padx=(8, 0))
 
         info_label = ctk.CTkLabel(
             container,
@@ -257,7 +282,12 @@ class Tabs(BaseComponent):
             font=("Segoe UI", 11),
             text_color=self._get_color("text_muted"),
         )
-        info_label.grid(row=2, column=0, sticky="w")
+        info_label.grid(row=3, column=0, sticky="w")
+
+    # Método legacy para compatibilidad hacia atrás
+    def _create_youtube_tab(self):
+        """Alias para _create_url_video_tab para compatibilidad."""
+        self._create_url_video_tab()
 
     def _create_microphone_tab(self):
         """Crea la pestaña de grabación desde micrófono."""
@@ -688,7 +718,7 @@ class Tabs(BaseComponent):
         # Aplicar a los frames internos
         for frame in [
             self.file_frame,
-            self.youtube_frame,
+            self.url_video_frame,
             self.mic_frame,
             self.config_frame,
         ]:
