@@ -142,7 +142,6 @@ class MainWindow(ctk.CTk):
         self.mic_recorder = MicrophoneRecorder(gui_queue=self.transcription_queue)
         self.stats_calculator = StatisticsCalculator()
         self.minutes_generator = MinutesGenerator()
-        
 
         # Configuración de ventana
         self.title("DesktopWhisperTranscriber")
@@ -175,7 +174,7 @@ class MainWindow(ctk.CTk):
         self.ai_handler = AIHandler(
             base_url=self.ai_url_var.get(),
             model_name=self.ai_model_var.get(),
-            api_key=self.ai_key_var.get()
+            api_key=self.ai_key_var.get(),
         )
         self.semantic_search = SemanticSearch(self.ai_handler)
 
@@ -183,7 +182,9 @@ class MainWindow(ctk.CTk):
         theme_manager.add_observer(self._on_theme_change)
 
         # Inicializar modo de apariencia de customtkinter
-        ctk.set_appearance_mode("Dark" if theme_manager.current_mode == "dark" else "Light")
+        ctk.set_appearance_mode(
+            "Dark" if theme_manager.current_mode == "dark" else "Light"
+        )
 
         # Crear UI
         self._create_ui()
@@ -199,6 +200,21 @@ class MainWindow(ctk.CTk):
         # Verificar integridad de archivos críticos
         self._perform_integrity_check()
 
+        # Verificar conexión con IA local al inicio (después de que todo esté inicializado)
+        self.after(1000, self._check_ai_connection_on_startup)
+
+    def _check_ai_connection_on_startup(self):
+        """Verifica la conexión de IA al inicio de forma silenciosa."""
+        self._update_ai_config()
+
+        def run_startup_test():
+            is_connected = self.ai_handler.test_connection()
+            self.after(0, lambda: self._update_ai_status_ui(is_connected))
+
+        import threading
+
+        threading.Thread(target=run_startup_test, daemon=True).start()
+
     def _perform_integrity_check(self):
         """Verifica la integridad de los archivos críticos al inicio."""
         try:
@@ -208,7 +224,9 @@ class MainWindow(ctk.CTk):
             all_exist, missing_files = verify_critical_files_exist()
 
             if not all_exist:
-                logger.security(f"[INTEGRITY CHECK] Archivos críticos faltantes: {missing_files}")
+                logger.security(
+                    f"[INTEGRITY CHECK] Archivos críticos faltantes: {missing_files}"
+                )
                 # Mostrar advertencia al usuario
                 self.after(1000, lambda: self._show_integrity_warning(missing_files))
                 return
@@ -218,11 +236,15 @@ class MainWindow(ctk.CTk):
 
             if not report.is_valid:
                 invalid_files = [r.file_name for r in report.results if not r.is_valid]
-                logger.security(f"[INTEGRITY CHECK] Archivos modificados: {invalid_files}")
+                logger.security(
+                    f"[INTEGRITY CHECK] Archivos modificados: {invalid_files}"
+                )
                 # Mostrar advertencia al usuario
                 self.after(
                     1000,
-                    lambda: self._show_integrity_warning(invalid_files, is_modification=True),
+                    lambda: self._show_integrity_warning(
+                        invalid_files, is_modification=True
+                    ),
                 )
             else:
                 logger.info("[INTEGRITY CHECK] Verificación de integridad exitosa")
@@ -315,7 +337,9 @@ class MainWindow(ctk.CTk):
                 self.update_notification_manager.show_update_notification(
                     update_info, on_skip=self._on_skip_version, on_dismiss=None
                 )
-                logger.info(f"Notificación de actualización mostrada: v{update_info.version}")
+                logger.info(
+                    f"Notificación de actualización mostrada: v{update_info.version}"
+                )
         except Exception as e:
             logger.error(f"Error mostrando notificación de actualización: {e}")
 
@@ -423,7 +447,9 @@ class MainWindow(ctk.CTk):
             scrollbar_button_color=self._get_color("border"),
             scrollbar_button_hover_color=self._get_color("border_hover"),
         )
-        self.content_scroll.grid(row=2, column=0, sticky="nsew", padx=spacing, pady=spacing)
+        self.content_scroll.grid(
+            row=2, column=0, sticky="nsew", padx=spacing, pady=spacing
+        )
         self.content_scroll.grid_columnconfigure(0, weight=1)
 
         # Componentes del área de contenido
@@ -449,6 +475,7 @@ class MainWindow(ctk.CTk):
             self.stop_microphone_recording,
             self._on_tab_change,
             self._validate_youtube_input,
+            self.test_ai_connection,
         )
         self.tabs.grid(row=0, column=0, sticky="ew", pady=(0, 16))
 
@@ -459,10 +486,10 @@ class MainWindow(ctk.CTk):
         self.fragments_section.grid(row=2, column=0, sticky="ew", pady=(0, 16))
 
         self.transcription_area = TranscriptionArea(
-            self.content_scroll, 
+            self.content_scroll,
             theme_manager,
             on_save_callback=self._on_transcription_saved,
-            on_search_callback=self.search_semantic
+            on_search_callback=self.search_semantic,
         )
         self.transcription_area.grid(row=3, column=0, sticky="nsew", pady=(0, 16))
 
@@ -498,7 +525,7 @@ class MainWindow(ctk.CTk):
 
     def _on_mode_change(self, mode):
         """Muestra u oculta opciones avanzadas según el modo."""
-        if hasattr(self, 'tabs') and hasattr(self.tabs, 'advanced_frame'):
+        if hasattr(self, "tabs") and hasattr(self.tabs, "advanced_frame"):
             if mode == "Avanzado":
                 self.tabs.advanced_frame.grid()
             else:
@@ -514,7 +541,7 @@ class MainWindow(ctk.CTk):
     def _validate_youtube_input(self, event=None):
         """Valida la URL de YouTube en tiempo real."""
         # Acceder a los widgets a través del componente Tabs
-        if hasattr(self, 'tabs') and hasattr(self.tabs, 'youtube_url_entry'):
+        if hasattr(self, "tabs") and hasattr(self.tabs, "youtube_url_entry"):
             url = self.tabs.youtube_url_entry.get()
             if self._validate_youtube_url(url):
                 self.tabs.transcribe_youtube_button.configure(state="normal")
@@ -568,7 +595,9 @@ class MainWindow(ctk.CTk):
         if filepath:
             self.audio_filepath = filepath
             filename = os.path.basename(filepath)
-            self.tabs.file_label.configure(text=filename, text_color=self._get_color("text"))
+            self.tabs.file_label.configure(
+                text=filename, text_color=self._get_color("text")
+            )
             # Log audit event
             try:
                 log_file_open(filepath, os.path.getsize(filepath))
@@ -677,7 +706,7 @@ class MainWindow(ctk.CTk):
         self._total_audio_duration = 0.0
         self._transcription_actual_time = 0.0
         self.progress_section.reset()
-        
+
         # Reset panel de estadísticas
         self.statistics_panel.clear()
 
@@ -755,11 +784,7 @@ class MainWindow(ctk.CTk):
             end = msg.get("end")
 
             # Almacenar segmento crudo para subtítulos
-            self.raw_segments.append({
-                "text": segment_text,
-                "start": start,
-                "end": end
-            })
+            self.raw_segments.append({"text": segment_text, "start": start, "end": end})
 
             if idx is not None:
                 # Almacenar fragmento por su índice
@@ -786,11 +811,15 @@ class MainWindow(ctk.CTk):
             self._set_ui_state(self.UI_STATE_COMPLETED)
 
             # Calcular y mostrar estadísticas
-            stats = self.stats_calculator.calculate(final_text, self._total_audio_duration)
+            stats = self.stats_calculator.calculate(
+                final_text, self._total_audio_duration
+            )
             self.statistics_panel.update_statistics(stats)
 
             # Mostrar mensaje con el tiempo real de transcripción
-            completion_msg = f"Transcripción completada en {self._format_time(real_time)}"
+            completion_msg = (
+                f"Transcripción completada en {self._format_time(real_time)}"
+            )
             self.progress_section.status_label.configure(text=completion_msg)
 
             # También actualizar el stats_label para que quede fijo con el tiempo final
@@ -819,17 +848,25 @@ class MainWindow(ctk.CTk):
             self.progress_section.progress_bar.set(percentage / 100)
             self.progress_section.progress_label.configure(text=f"{percentage:.1f}%")
             filename = data.get("filename", "")
-            self.progress_section.status_label.configure(text=f"Descargando: {filename}")
+            self.progress_section.status_label.configure(
+                text=f"Descargando: {filename}"
+            )
 
         # Mensajes de grabación
         elif msg_type == "recording_started":
-            self.progress_section.status_label.configure(text="Grabando desde el micrófono...")
+            self.progress_section.status_label.configure(
+                text="Grabando desde el micrófono..."
+            )
         elif msg_type == "recording_completed":
             filepath = msg.get("filepath")
             self.audio_filepath = filepath
             filename = os.path.basename(filepath)
-            self.tabs.file_label.configure(text=filename, text_color=self._get_color("text"))
-            self.progress_section.status_label.configure(text="Grabación completada. Lista para transcribir.")
+            self.tabs.file_label.configure(
+                text=filename, text_color=self._get_color("text")
+            )
+            self.progress_section.status_label.configure(
+                text="Grabación completada. Lista para transcribir."
+            )
             # Cambiar automáticamente al tab de archivo para mostrar el resultado
             self.tabs.input_tabs.set("    Archivo Local    ")
             self.tabs.show_tab_content("    Archivo Local    ")
@@ -845,7 +882,9 @@ class MainWindow(ctk.CTk):
 
     def _update_word_count(self):
         """Actualiza el contador de palabras."""
-        if hasattr(self, 'transcription_area') and hasattr(self.transcription_area, 'update_word_count'):
+        if hasattr(self, "transcription_area") and hasattr(
+            self.transcription_area, "update_word_count"
+        ):
             self.transcription_area.update_word_count()
 
     def _create_fragment_buttons(self):
@@ -860,7 +899,9 @@ class MainWindow(ctk.CTk):
         text = self.transcribed_text
 
         fragment_size = 500
-        fragments = [text[i : i + fragment_size] for i in range(0, len(text), fragment_size)]
+        fragments = [
+            text[i : i + fragment_size] for i in range(0, len(text), fragment_size)
+        ]
 
         self._clear_fragments()
         self.fragment_data = {}
@@ -901,7 +942,9 @@ class MainWindow(ctk.CTk):
             # Resaltar botón activo
             for i, btn in enumerate(self.fragment_buttons):
                 if i + 1 == fragment_number:
-                    btn.configure(fg_color=self._get_color("primary"), text_color="white")
+                    btn.configure(
+                        fg_color=self._get_color("primary"), text_color="white"
+                    )
                 else:
                     btn.configure(
                         fg_color=self._get_color("surface_elevated"),
@@ -952,7 +995,9 @@ class MainWindow(ctk.CTk):
 
         # Insertar en la posición correcta (ordenado por índice)
         # Como CTk no permite 'pack' en posición específica fácilmente, borramos y re-empacamos si no es el último
-        if not self.fragment_buttons or num > int(self.fragment_buttons[-1].cget("text")[1:]):
+        if not self.fragment_buttons or num > int(
+            self.fragment_buttons[-1].cget("text")[1:]
+        ):
             btn.pack(side="left", padx=4)
             self.fragment_buttons.append(btn)
         else:
@@ -1174,13 +1219,13 @@ class MainWindow(ctk.CTk):
                         # Asegurar que tenemos timestamps
                         start = seg.get("start", 0.0)
                         end = seg.get("end", start + 5.0)
-                        segments.append({
-                            "text": seg["text"],
-                            "start_time": start,
-                            "end_time": end
-                        })
-                    
-                    subtitle_segments = self.subtitle_exporter.segments_from_fragments(segments)
+                        segments.append(
+                            {"text": seg["text"], "start_time": start, "end_time": end}
+                        )
+
+                    subtitle_segments = self.subtitle_exporter.segments_from_fragments(
+                        segments
+                    )
                     self.subtitle_exporter.save_srt(subtitle_segments, filepath)
                 else:
                     # Fallback si no hay timestamps precisos
@@ -1188,10 +1233,12 @@ class MainWindow(ctk.CTk):
                         self.transcribed_text,
                         self._total_audio_duration or 60.0,
                         filepath,
-                        format_type="srt"
+                        format_type="srt",
                     )
-                
-                self.progress_section.status_label.configure(text=f"SRT guardado en: {os.path.basename(filepath)}")
+
+                self.progress_section.status_label.configure(
+                    text=f"SRT guardado en: {os.path.basename(filepath)}"
+                )
                 messagebox.showinfo("Éxito", "Subtítulos SRT guardados correctamente.")
             except Exception as e:
                 messagebox.showerror("Error", f"Error al guardar SRT: {e}")
@@ -1215,23 +1262,25 @@ class MainWindow(ctk.CTk):
                     for seg in self.raw_segments:
                         start = seg.get("start", 0.0)
                         end = seg.get("end", start + 5.0)
-                        segments.append({
-                            "text": seg["text"],
-                            "start_time": start,
-                            "end_time": end
-                        })
-                    
-                    subtitle_segments = self.subtitle_exporter.segments_from_fragments(segments)
+                        segments.append(
+                            {"text": seg["text"], "start_time": start, "end_time": end}
+                        )
+
+                    subtitle_segments = self.subtitle_exporter.segments_from_fragments(
+                        segments
+                    )
                     self.subtitle_exporter.save_vtt(subtitle_segments, filepath)
                 else:
                     self.subtitle_exporter.save_from_text_with_duration(
                         self.transcribed_text,
                         self._total_audio_duration or 60.0,
                         filepath,
-                        format_type="vtt"
+                        format_type="vtt",
                     )
-                
-                self.progress_section.status_label.configure(text=f"VTT guardado en: {os.path.basename(filepath)}")
+
+                self.progress_section.status_label.configure(
+                    text=f"VTT guardado en: {os.path.basename(filepath)}"
+                )
                 messagebox.showinfo("Éxito", "Subtítulos VTT guardados correctamente.")
             except Exception as e:
                 messagebox.showerror("Error", f"Error al guardar VTT: {e}")
@@ -1247,11 +1296,16 @@ class MainWindow(ctk.CTk):
             self.progress_section.status_label.configure(text="Generando minutas...")
             minutes = self.minutes_generator.generate(text)
             formatted_minutes = self.minutes_generator.format_as_text(minutes)
-            
+
             # Mostrar en el área de transcripción (podemos preguntar si reemplazar o añadir)
-            if messagebox.askyesno("Minuta Generada", "¿Deseas reemplazar el texto actual con la minuta generada?\n\n(Puedes deshacer este cambio después)"):
+            if messagebox.askyesno(
+                "Minuta Generada",
+                "¿Deseas reemplazar el texto actual con la minuta generada?\n\n(Puedes deshacer este cambio después)",
+            ):
                 self.transcription_area.set_text(formatted_minutes)
-                self.progress_section.status_label.configure(text="Minuta generada y aplicada.")
+                self.progress_section.status_label.configure(
+                    text="Minuta generada y aplicada."
+                )
             else:
                 # O simplemente guardarla en un archivo
                 filepath = filedialog.asksaveasfilename(
@@ -1263,22 +1317,30 @@ class MainWindow(ctk.CTk):
                 if filepath:
                     with open(filepath, "w", encoding="utf-8") as f:
                         f.write(formatted_minutes)
-                    self.progress_section.status_label.configure(text=f"Minuta guardada en: {os.path.basename(filepath)}")
+                    self.progress_section.status_label.configure(
+                        text=f"Minuta guardada en: {os.path.basename(filepath)}"
+                    )
                     messagebox.showinfo("Éxito", "Minuta guardada correctamente.")
 
         except Exception as e:
             messagebox.showerror("Error", f"Error al generar minutas: {e}")
-            self.progress_section.status_label.configure(text="Error al generar minutas.")
+            self.progress_section.status_label.configure(
+                text="Error al generar minutas."
+            )
 
     def start_microphone_recording(self):
         """Inicia la grabación desde el micrófono."""
         if not self.mic_recorder.is_available():
-            messagebox.showerror("Error", "PyAudio no está instalado. No se puede grabar.")
+            messagebox.showerror(
+                "Error", "PyAudio no está instalado. No se puede grabar."
+            )
             return
-            
+
         try:
             self.mic_recorder.start_recording()
-            self.footer.set_transcribing(True) # Reusar estado de UI para mostrar controles
+            self.footer.set_transcribing(
+                True
+            )  # Reusar estado de UI para mostrar controles
         except Exception as e:
             messagebox.showerror("Error", f"Error al iniciar grabación: {e}")
 
@@ -1294,7 +1356,9 @@ class MainWindow(ctk.CTk):
         """Maneja el guardado del texto desde el editor."""
         self.transcribed_text = new_text
         self._update_word_count()
-        self.progress_section.status_label.configure(text="Cambios guardados exitosamente.")
+        self.progress_section.status_label.configure(
+            text="Cambios guardados exitosamente."
+        )
         logger.info("Transcripción actualizada manualmente por el usuario.")
 
     def copy_specific_fragment(self, fragment_number):
@@ -1321,7 +1385,6 @@ class MainWindow(ctk.CTk):
         theme_manager.remove_observer(self._on_theme_change)
         self.destroy()
 
-
     def summarize_ai(self):
         """Genera un resumen usando el LLM local."""
         text = self.transcription_area.get_text()
@@ -1331,12 +1394,13 @@ class MainWindow(ctk.CTk):
 
         self.progress_section.status_label.configure(text="Generando resumen IA...")
         self._update_ai_config()
-        
+
         def run_summary():
             summary = self.ai_handler.summarize(text)
             self.after(0, lambda: self._show_ai_result("Resumen IA", summary))
 
         import threading
+
         threading.Thread(target=run_summary, daemon=True).start()
 
     def analyze_sentiment_ai(self):
@@ -1351,31 +1415,47 @@ class MainWindow(ctk.CTk):
 
         def run_sentiment():
             sentiment = self.ai_handler.analyze_sentiment(text)
-            self.after(0, lambda: self._show_ai_result("Análisis de Sentimiento", sentiment))
+            self.after(
+                0, lambda: self._show_ai_result("Análisis de Sentimiento", sentiment)
+            )
 
         import threading
+
         threading.Thread(target=run_sentiment, daemon=True).start()
 
     def search_semantic(self, query):
         """Realiza una búsqueda semántica en la transcripción actual."""
         if not self.raw_segments:
             # Si no hay segmentos crudos, intentamos con el texto completo pero es menos efectivo
-            messagebox.showwarning("Sin datos", "Realiza una transcripción primero para habilitar búsqueda semántica.")
+            messagebox.showwarning(
+                "Sin datos",
+                "Realiza una transcripción primero para habilitar búsqueda semántica.",
+            )
             return
 
         self._update_ai_config()
-        self.progress_section.status_label.configure(text=f"Buscando semánticamente: {query}")
+        self.progress_section.status_label.configure(
+            text=f"Buscando semánticamente: {query}"
+        )
 
         def run_search():
             # Indexar si no se ha hecho para esta transcripción
             if not self.semantic_search.segments:
-                segments = [{"text": s["text"], "start": s.get("start", 0), "end": s.get("end", 0)} for s in self.raw_segments]
+                segments = [
+                    {
+                        "text": s["text"],
+                        "start": s.get("start", 0),
+                        "end": s.get("end", 0),
+                    }
+                    for s in self.raw_segments
+                ]
                 self.semantic_search.index_segments(segments)
-            
+
             results = self.semantic_search.search(query)
             self.after(0, lambda: self._show_search_results(results))
 
         import threading
+
         threading.Thread(target=run_search, daemon=True).start()
 
     def _update_ai_config(self):
@@ -1383,31 +1463,70 @@ class MainWindow(ctk.CTk):
         self.ai_handler.update_config(
             base_url=self.ai_url_var.get(),
             model_name=self.ai_model_var.get(),
-            api_key=self.ai_key_var.get()
+            api_key=self.ai_key_var.get(),
         )
+
+    def test_ai_connection(self):
+        """Prueba la conexión con el servidor de IA local."""
+        self._update_ai_config()
+        self.progress_section.status_label.configure(text="Probando conexión con IA...")
+
+        def run_test():
+            is_connected = self.ai_handler.test_connection()
+            self.after(0, lambda: self._update_ai_status_ui(is_connected))
+
+        import threading
+
+        threading.Thread(target=run_test, daemon=True).start()
+
+    def _update_ai_status_ui(self, is_connected: bool):
+        """Actualiza la UI con el estado de conexión de IA."""
+        if is_connected:
+            self.tabs.update_ai_status(
+                connected=True,
+                message=f"Conectado a {self.ai_model_var.get()} en {self.ai_url_var.get()}",
+            )
+            self.action_buttons.set_ai_buttons_state(True)
+            self.progress_section.status_label.configure(text="✅ IA Conectada y lista")
+        else:
+            self.tabs.update_ai_status(
+                connected=False,
+                message=f"No se pudo conectar a {self.ai_url_var.get()}. ¿Está {self.ai_provider_var.get()} ejecutándose?",
+            )
+            self.action_buttons.set_ai_buttons_state(False)
+            self.progress_section.status_label.configure(text="❌ IA No conectada")
 
     def _show_ai_result(self, title, result):
         """Muestra el resultado de una operación de IA."""
-        self.progress_section.status_label.configure(text="Procesamiento IA completado.")
+        self.progress_section.status_label.configure(
+            text="Procesamiento IA completado."
+        )
         if not result:
             messagebox.showerror("Error", "No se recibió respuesta del modelo local.")
             return
-            
-        if messagebox.askyesno(title, f"{result}\n\n¿Deseas añadir este resultado al final del texto?"):
+
+        if messagebox.askyesno(
+            title, f"{result}\n\n¿Deseas añadir este resultado al final del texto?"
+        ):
             current_text = self.transcription_area.get_text()
-            self.transcription_area.set_text(f"{current_text}\n\n--- {title} ---\n{result}")
+            self.transcription_area.set_text(
+                f"{current_text}\n\n--- {title} ---\n{result}"
+            )
 
     def _show_search_results(self, results):
         """Muestra los resultados de la búsqueda semántica."""
         if not results:
-            messagebox.showinfo("Búsqueda Semántica", "No se encontraron resultados relevantes.")
+            messagebox.showinfo(
+                "Búsqueda Semántica", "No se encontraron resultados relevantes."
+            )
             return
-            
+
         msg = "Top resultados encontrados:\n\n"
         for r in results:
             msg += f"[{r['start']:.1f}s] (Similitud: {r['score']:.2f}):\n{r['text'][:100]}...\n\n"
-        
+
         messagebox.showinfo("Resultados Semánticos", msg)
+
 
 if __name__ == "__main__":
     # Para pruebas standalone

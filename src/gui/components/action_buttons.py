@@ -17,9 +17,9 @@ class ActionButtons(BaseComponent):
         save_srt_callback,
         save_vtt_callback,
         generate_minutes_callback,
-        summarize_callback,      # Callback para resumen IA
-        sentiment_callback,      # Callback para sentimiento IA
-        **kwargs
+        summarize_callback,  # Callback para resumen IA
+        sentiment_callback,  # Callback para sentimiento IA
+        **kwargs,
     ):
         super().__init__(parent, theme_manager, **kwargs)
 
@@ -100,7 +100,9 @@ class ActionButtons(BaseComponent):
             border_color=self._get_color("border"),
             command=self.save_vtt_callback,
         )
-        self.export_vtt_button.grid(row=0, column=3, padx=(5, 20), pady=(20, 10), sticky="ew")
+        self.export_vtt_button.grid(
+            row=0, column=3, padx=(5, 20), pady=(20, 10), sticky="ew"
+        )
 
         # Botón Generar Minuta (Destacado)
         self.generate_minutes_button = ctk.CTkButton(
@@ -113,7 +115,9 @@ class ActionButtons(BaseComponent):
             text_color="white",
             command=self.generate_minutes_callback,
         )
-        self.generate_minutes_button.grid(row=1, column=0, columnspan=4, padx=20, pady=(10, 10), sticky="ew")
+        self.generate_minutes_button.grid(
+            row=1, column=0, columnspan=4, padx=20, pady=(10, 10), sticky="ew"
+        )
 
         # Botón Resumen IA
         self.summarize_button = ctk.CTkButton(
@@ -127,8 +131,11 @@ class ActionButtons(BaseComponent):
             border_width=1,
             border_color=self._get_color("border"),
             command=self.summarize_callback,
+            state="disabled",
         )
-        self.summarize_button.grid(row=2, column=0, columnspan=2, padx=(20, 5), pady=(10, 20), sticky="ew")
+        self.summarize_button.grid(
+            row=2, column=0, columnspan=2, padx=(20, 5), pady=(10, 20), sticky="ew"
+        )
 
         # Botón Sentimiento IA
         self.sentiment_button = ctk.CTkButton(
@@ -142,12 +149,23 @@ class ActionButtons(BaseComponent):
             border_width=1,
             border_color=self._get_color("border"),
             command=self.sentiment_callback,
+            state="disabled",
         )
-        self.sentiment_button.grid(row=2, column=2, columnspan=2, padx=(5, 20), pady=(10, 20), sticky="ew")
+        self.sentiment_button.grid(
+            row=2, column=2, columnspan=2, padx=(5, 20), pady=(10, 20), sticky="ew"
+        )
+
+    def set_ai_buttons_state(self, enabled: bool):
+        """Habilita o deshabilita los botones de IA."""
+        state = "normal" if enabled else "disabled"
+        self.summarize_button.configure(state=state)
+        self.sentiment_button.configure(state=state)
 
     def apply_theme(self):
         """Aplica el tema actual."""
-        self.configure(fg_color=self._get_color("surface"), border_color=self._get_color("border"))
+        self.configure(
+            fg_color=self._get_color("surface"), border_color=self._get_color("border")
+        )
         for btn in [
             self.export_txt_button,
             self.export_pdf_button,
@@ -162,7 +180,26 @@ class ActionButtons(BaseComponent):
                 text_color=self._get_color("text"),
                 border_color=self._get_color("border"),
             )
-        
+
+        self.generate_minutes_button.configure(
+            fg_color=self._get_color("primary"),
+            hover_color=self._get_color("primary_hover"),
+        )
+        for btn in [
+            self.export_txt_button,
+            self.export_pdf_button,
+            self.export_srt_button,
+            self.export_vtt_button,
+            self.summarize_button,
+            self.sentiment_button,
+        ]:
+            btn.configure(
+                fg_color=self._get_color("surface_elevated"),
+                hover_color=self._get_color("border_hover"),
+                text_color=self._get_color("text"),
+                border_color=self._get_color("border"),
+            )
+
         self.generate_minutes_button.configure(
             fg_color=self._get_color("primary"),
             hover_color=self._get_color("primary_hover"),

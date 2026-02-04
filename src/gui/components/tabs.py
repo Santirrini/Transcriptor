@@ -37,7 +37,8 @@ class Tabs(BaseComponent):
         stop_mic_callback,
         on_tab_change_callback,
         validate_youtube_callback,
-        **kwargs
+        test_ai_callback,
+        **kwargs,
     ):
         super().__init__(parent, theme_manager, **kwargs)
 
@@ -63,6 +64,7 @@ class Tabs(BaseComponent):
         self.stop_mic_callback = stop_mic_callback
         self.on_tab_change_callback = on_tab_change_callback
         self.validate_youtube_callback = validate_youtube_callback
+        self.test_ai_callback = test_ai_callback
 
         radius = self._get_border_radius("xl")
 
@@ -77,7 +79,12 @@ class Tabs(BaseComponent):
         # Tabs modernos
         self.input_tabs = ctk.CTkSegmentedButton(
             self,
-            values=["    Archivo Local    ", "    YouTube    ", "    Micrófono    ", "    Configuración    "],
+            values=[
+                "    Archivo Local    ",
+                "    YouTube    ",
+                "    Micrófono    ",
+                "    Configuración    ",
+            ],
             command=self._on_segment_change,
             font=("Segoe UI", 13, "bold"),
             height=40,
@@ -92,7 +99,9 @@ class Tabs(BaseComponent):
 
         # Contenedor para los contenidos de los tabs
         self.tab_content_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.tab_content_frame.grid(row=1, column=0, padx=16, pady=(0, 16), sticky="nsew")
+        self.tab_content_frame.grid(
+            row=1, column=0, padx=16, pady=(0, 16), sticky="nsew"
+        )
         self.tab_content_frame.grid_columnconfigure(0, weight=1)
         self.tab_content_frame.grid_rowconfigure(0, weight=1)
 
@@ -112,7 +121,12 @@ class Tabs(BaseComponent):
 
     def show_tab_content(self, tab_name):
         # Ocultar todos los frames de contenido
-        for frame in [self.file_frame, self.youtube_frame, self.mic_frame, self.config_frame]:
+        for frame in [
+            self.file_frame,
+            self.youtube_frame,
+            self.mic_frame,
+            self.config_frame,
+        ]:
             frame.grid_remove()
 
         # Mostrar el frame correspondiente al tab seleccionado
@@ -183,7 +197,9 @@ class Tabs(BaseComponent):
         formats_label.grid(row=2, column=0, sticky="w")
 
     def _create_youtube_tab(self):
-        self.youtube_frame = ctk.CTkFrame(self.tab_content_frame, fg_color="transparent")
+        self.youtube_frame = ctk.CTkFrame(
+            self.tab_content_frame, fg_color="transparent"
+        )
         self.youtube_frame.grid_columnconfigure(0, weight=1)
 
         container = ctk.CTkFrame(self.youtube_frame, fg_color="transparent")
@@ -250,7 +266,7 @@ class Tabs(BaseComponent):
             self.theme_manager,
             self.mic_recorder,
             self.start_mic_callback,
-            self.stop_mic_callback
+            self.stop_mic_callback,
         )
         self.mic_frame.grid_columnconfigure(0, weight=1)
 
@@ -258,7 +274,9 @@ class Tabs(BaseComponent):
         self.config_frame = ctk.CTkFrame(self.tab_content_frame, fg_color="transparent")
         self.config_frame.grid_columnconfigure(0, weight=1)
 
-        scroll = ctk.CTkScrollableFrame(self.config_frame, fg_color="transparent", height=220)
+        scroll = ctk.CTkScrollableFrame(
+            self.config_frame, fg_color="transparent", height=220
+        )
         scroll.grid(row=0, column=0, padx=16, pady=16, sticky="nsew")
         scroll.grid_columnconfigure((0, 1), weight=1)
 
@@ -314,7 +332,15 @@ class Tabs(BaseComponent):
 
         self.model_select_combo = ctk.CTkComboBox(
             model_container,
-            values=["tiny", "base", "small", "medium", "large-v1", "large-v2", "large-v3"],
+            values=[
+                "tiny",
+                "base",
+                "small",
+                "medium",
+                "large-v1",
+                "large-v2",
+                "large-v3",
+            ],
             variable=self.model_var,
             font=("Segoe UI", 13),
             height=40,
@@ -374,7 +400,11 @@ class Tabs(BaseComponent):
             text_color=self._get_color("text"),
         )
         self.vad_checkbox.grid(row=0, column=0, padx=8, pady=6, sticky="w")
-        add_tooltip(self.vad_checkbox, "Voice Activity Detection - Detecta y filtra silencios", 400)
+        add_tooltip(
+            self.vad_checkbox,
+            "Voice Activity Detection - Detecta y filtra silencios",
+            400,
+        )
 
         self.diarization_checkbox = ctk.CTkCheckBox(
             checkbox_frame,
@@ -390,7 +420,9 @@ class Tabs(BaseComponent):
         )
         self.diarization_checkbox.grid(row=0, column=1, padx=8, pady=6, sticky="w")
         add_tooltip(
-            self.diarization_checkbox, "Identifica diferentes hablantes en la transcripción", 400
+            self.diarization_checkbox,
+            "Identifica diferentes hablantes en la transcripción",
+            400,
         )
 
         self.live_checkbox = ctk.CTkCheckBox(
@@ -407,7 +439,9 @@ class Tabs(BaseComponent):
         )
         self.live_checkbox.grid(row=1, column=0, padx=8, pady=6, sticky="w")
         add_tooltip(
-            self.live_checkbox, "Muestra el texto en tiempo real durante la transcripción", 400
+            self.live_checkbox,
+            "Muestra el texto en tiempo real durante la transcripción",
+            400,
         )
 
         self.parallel_checkbox = ctk.CTkCheckBox(
@@ -424,11 +458,15 @@ class Tabs(BaseComponent):
         )
         self.parallel_checkbox.grid(row=1, column=1, padx=8, pady=6, sticky="w")
         add_tooltip(
-            self.parallel_checkbox, "Usa múltiples núcleos para procesamiento más rápido", 400
+            self.parallel_checkbox,
+            "Usa múltiples núcleos para procesamiento más rápido",
+            400,
         )
 
         # Sección de Diccionario Personalizado
-        dict_separator = ctk.CTkFrame(scroll, height=2, fg_color=self._get_color("border"))
+        dict_separator = ctk.CTkFrame(
+            scroll, height=2, fg_color=self._get_color("border")
+        )
         dict_separator.grid(row=2, column=0, columnspan=2, sticky="ew", pady=20)
 
         dict_title_label = ctk.CTkLabel(
@@ -445,7 +483,9 @@ class Tabs(BaseComponent):
             font=("Segoe UI", 11),
             text_color=self._get_color("text_muted"),
         )
-        dict_desc_label.grid(row=4, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 10))
+        dict_desc_label.grid(
+            row=4, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 10)
+        )
 
         dict_input_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         dict_input_frame.grid(row=5, column=0, columnspan=2, sticky="ew", padx=8)
@@ -469,10 +509,18 @@ class Tabs(BaseComponent):
         self.add_term_button.grid(row=0, column=1)
 
         # Lista de términos (usaremos un frame con scroll interno o simplemente un label con tags)
-        self.terms_container = ctk.CTkFrame(scroll, fg_color=self._get_color("background"), corner_radius=8, border_width=1, border_color=self._get_color("border"))
-        self.terms_container.grid(row=6, column=0, columnspan=2, sticky="ew", padx=8, pady=10)
+        self.terms_container = ctk.CTkFrame(
+            scroll,
+            fg_color=self._get_color("background"),
+            corner_radius=8,
+            border_width=1,
+            border_color=self._get_color("border"),
+        )
+        self.terms_container.grid(
+            row=6, column=0, columnspan=2, sticky="ew", padx=8, pady=10
+        )
         self.terms_container.grid_columnconfigure(0, weight=1)
-        
+
         self.terms_label = ctk.CTkLabel(
             self.terms_container,
             text="Cargando términos...",
@@ -483,11 +531,13 @@ class Tabs(BaseComponent):
             anchor="w",
         )
         self.terms_label.grid(row=0, column=0, padx=10, pady=10, sticky="w")
-        
+
         self._refresh_terms_display()
 
         # Sección de IA Local (LLM)
-        ai_separator = ctk.CTkFrame(scroll, height=2, fg_color=self._get_color("border"))
+        ai_separator = ctk.CTkFrame(
+            scroll, height=2, fg_color=self._get_color("border")
+        )
         ai_separator.grid(row=7, column=0, columnspan=2, sticky="ew", pady=20)
 
         ai_title_label = ctk.CTkLabel(
@@ -500,11 +550,15 @@ class Tabs(BaseComponent):
 
         # Campos de configuración de IA
         ai_config_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        ai_config_frame.grid(row=9, column=0, columnspan=2, sticky="ew", padx=8, pady=10)
+        ai_config_frame.grid(
+            row=9, column=0, columnspan=2, sticky="ew", padx=8, pady=10
+        )
         ai_config_frame.grid_columnconfigure((1, 3), weight=1)
 
         # Proveedor
-        ctk.CTkLabel(ai_config_frame, text="Proveedor:", font=("Segoe UI", 12)).grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        ctk.CTkLabel(ai_config_frame, text="Proveedor:", font=("Segoe UI", 12)).grid(
+            row=0, column=0, padx=5, pady=5, sticky="e"
+        )
         self.ai_provider_combo = ctk.CTkComboBox(
             ai_config_frame,
             values=["Ollama", "LM Studio", "Otro (OpenAI compatible)"],
@@ -514,14 +568,94 @@ class Tabs(BaseComponent):
         self.ai_provider_combo.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
         # Modelo
-        ctk.CTkLabel(ai_config_frame, text="Modelo:", font=("Segoe UI", 12)).grid(row=0, column=2, padx=5, pady=5, sticky="e")
-        self.ai_model_entry = ctk.CTkEntry(ai_config_frame, textvariable=self.ai_model_var, placeholder_text="llama3, mistral...")
+        ctk.CTkLabel(ai_config_frame, text="Modelo:", font=("Segoe UI", 12)).grid(
+            row=0, column=2, padx=5, pady=5, sticky="e"
+        )
+        self.ai_model_entry = ctk.CTkEntry(
+            ai_config_frame,
+            textvariable=self.ai_model_var,
+            placeholder_text="llama3, mistral...",
+        )
         self.ai_model_entry.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
 
         # URL API
-        ctk.CTkLabel(ai_config_frame, text="Endpoint URL:", font=("Segoe UI", 12)).grid(row=1, column=0, padx=5, pady=5, sticky="e")
-        self.ai_url_entry = ctk.CTkEntry(ai_config_frame, textvariable=self.ai_url_var, placeholder_text="http://localhost:11434/v1")
-        self.ai_url_entry.grid(row=1, column=1, columnspan=3, padx=5, pady=5, sticky="ew")
+        ctk.CTkLabel(ai_config_frame, text="Endpoint URL:", font=("Segoe UI", 12)).grid(
+            row=1, column=0, padx=5, pady=5, sticky="e"
+        )
+        self.ai_url_entry = ctk.CTkEntry(
+            ai_config_frame,
+            textvariable=self.ai_url_var,
+            placeholder_text="http://localhost:11434/v1",
+        )
+        self.ai_url_entry.grid(
+            row=1, column=1, columnspan=3, padx=5, pady=5, sticky="ew"
+        )
+
+        # Frame para indicador de estado y botón de test
+        ai_status_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        ai_status_frame.grid(
+            row=10, column=0, columnspan=2, sticky="ew", padx=8, pady=(5, 15)
+        )
+        ai_status_frame.grid_columnconfigure((0, 1, 2), weight=1)
+
+        # Indicador de estado
+        self.ai_status_label = ctk.CTkLabel(
+            ai_status_frame,
+            text="🔴 IA No conectada",
+            font=("Segoe UI", 12),
+            text_color="#ef4444",  # Red-500
+        )
+        self.ai_status_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+
+        # Instrucciones
+        self.ai_instructions_label = ctk.CTkLabel(
+            ai_status_frame,
+            text="Instala Ollama o LM Studio para usar IA",
+            font=("Segoe UI", 11),
+            text_color=self._get_color("text_secondary"),
+        )
+        self.ai_instructions_label.grid(row=0, column=1, padx=5, pady=5)
+
+        # Botón de test
+        self.test_ai_button = ctk.CTkButton(
+            ai_status_frame,
+            text="🔄 Probar Conexión",
+            font=("Segoe UI", 12),
+            width=150,
+            height=35,
+            command=self._test_ai_connection,
+        )
+        self.test_ai_button.grid(row=0, column=2, padx=5, pady=5, sticky="e")
+
+    def _test_ai_connection(self):
+        """Llama al callback para probar la conexión de IA."""
+        if self.test_ai_callback:
+            self.test_ai_callback()
+
+    def update_ai_status(self, connected: bool, message: str = ""):
+        """Actualiza el indicador visual del estado de IA."""
+        if connected:
+            self.ai_status_label.configure(
+                text="🟢 IA Conectada",
+                text_color="#22c55e",  # Green-500
+            )
+            if message:
+                self.ai_instructions_label.configure(text=message)
+            else:
+                self.ai_instructions_label.configure(
+                    text="Listo para usar Resumen y Sentimiento"
+                )
+        else:
+            self.ai_status_label.configure(
+                text="🔴 IA No conectada",
+                text_color="#ef4444",  # Red-500
+            )
+            if message:
+                self.ai_instructions_label.configure(text=message)
+            else:
+                self.ai_instructions_label.configure(
+                    text="Instala Ollama o LM Studio para usar IA"
+                )
 
     def _add_dictionary_term(self):
         """Añade un término al diccionario y actualiza la UI."""
@@ -541,7 +675,9 @@ class Tabs(BaseComponent):
 
     def apply_theme(self):
         """Aplica el tema actual a los widgets."""
-        self.configure(fg_color=self._get_color("surface"), border_color=self._get_color("border"))
+        self.configure(
+            fg_color=self._get_color("surface"), border_color=self._get_color("border")
+        )
         self.input_tabs.configure(
             selected_color=self._get_color("primary"),
             selected_hover_color=self._get_color("primary_hover"),
@@ -550,6 +686,11 @@ class Tabs(BaseComponent):
             text_color=self._get_color("text"),
         )
         # Aplicar a los frames internos
-        for frame in [self.file_frame, self.youtube_frame, self.mic_frame, self.config_frame]:
+        for frame in [
+            self.file_frame,
+            self.youtube_frame,
+            self.mic_frame,
+            self.config_frame,
+        ]:
             if hasattr(frame, "apply_theme"):
                 frame.apply_theme()

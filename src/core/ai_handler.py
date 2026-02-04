@@ -10,18 +10,19 @@ from typing import Optional, Dict, List
 from openai import OpenAI
 from src.core.logger import logger
 
+
 class AIHandler:
     """Gestiona la comunicación con modelos de lenguaje locales."""
 
     def __init__(
-        self, 
-        base_url: str = "http://localhost:11434/v1", 
+        self,
+        base_url: str = "http://localhost:11434/v1",
         model_name: str = "llama3",
-        api_key: str = "not-needed"
+        api_key: str = "not-needed",
     ):
         """
         Inicializa el AIHandler.
-        
+
         Args:
             base_url: URL de la API del servidor local (Ollama suele ser /v1).
             model_name: Nombre del modelo a utilizar.
@@ -40,8 +41,35 @@ class AIHandler:
             logger.info(f"AIHandler cliente local inicializado en {self.base_url}")
         except Exception as e:
             logger.error(f"Error al inicializar cliente AI: {e}")
+            self.client = None
 
-    def update_config(self, base_url: str, model_name: str, api_key: str = "not-needed"):
+    def test_connection(self) -> bool:
+        """
+        Verifica si el servidor de IA local está disponible.
+
+        Returns:
+            True si hay conexión exitosa, False en caso contrario.
+        """
+        if not self.client:
+            return False
+
+        try:
+            # Intentar hacer una petición simple para verificar conectividad
+            response = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": "test"}],
+                max_tokens=1,
+                temperature=0,
+            )
+            logger.info(f"Conexión exitosa con {self.model_name} en {self.base_url}")
+            return True
+        except Exception as e:
+            logger.warning(f"No se pudo conectar al servidor de IA: {e}")
+            return False
+
+    def update_config(
+        self, base_url: str, model_name: str, api_key: str = "not-needed"
+    ):
         """Actualiza la configuración del cliente."""
         self.base_url = base_url
         self.model_name = model_name
@@ -49,41 +77,38 @@ class AIHandler:
         self._initialize_client()
 
     def summarize(self, text: str) -> Optional[str]:
-        """ Genera un resumen del texto proporcionado. """
+        """Genera un resumen del texto proporcionado."""
         if not self.client:
             return None
-            
+
         prompt = (
             "Eres un asistente experto en síntesis. Resume el siguiente texto de forma concisa "
             "pero informativa, resaltando los puntos clave:\n\n"
             f"{text}"
         )
-        
+
         return self._get_completion(prompt)
 
     def analyze_sentiment(self, text: str) -> Optional[str]:
-        """ Analiza el sentimiento predominante en el texto. """
+        """Analiza el sentimiento predominante en el texto."""
         if not self.client:
             return None
-            
+
         prompt = (
             "Analiza el sentimiento del siguiente texto. Responde en una sola palabra o frase corta "
             "(ej: Positivo, Negativo, Neutral, Muy entusiasta) y da una breve explicación de una línea:\n\n"
             f"{text}"
         )
-        
+
         return self._get_completion(prompt)
 
     def get_embeddings(self, text: str) -> Optional[List[float]]:
-        """ Obtiene los embeddings (vectores) del texto para búsqueda semántica. """
+        """Obtiene los embeddings (vectores) del texto para búsqueda semántica."""
         if not self.client:
             return None
-            
+
         try:
-            response = self.client.embeddings.create(
-                model=self.model_name,
-                input=text
-            )
+            response = self.client.embeddings.create(model=self.model_name, input=text)
             return response.data[0].embedding
         except Exception as e:
             logger.error(f"Error al obtener embeddings: {e}")
@@ -95,8 +120,11 @@ class AIHandler:
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "Eres un asistente útil y preciso que opera localmente en Windows."},
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "system",
+                        "content": "Eres un asistente útil y preciso que opera localmente en Windows.",
+                    },
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0.3,
             )
