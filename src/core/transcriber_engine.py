@@ -11,6 +11,8 @@ from typing import Any, Dict, Optional, Tuple
 from faster_whisper import WhisperModel
 
 from src.core.audio_handler import AudioHandler
+from src.core.dictionary_manager import DictionaryManager
+from src.core.logger import logger
 from src.core.exporter import TranscriptionExporter
 
 
@@ -156,7 +158,10 @@ class TranscriberEngine:
 
         # Nuevos atributos para procesamiento optimizado de archivos pesados
         self._process_pool = None
-        self._max_workers = min(mp.cpu_count(), 4)  # Limitar workers para no saturar
+        self._max_workers = 4  # Límite de hilos para procesamiento paralelo
+
+        # Gestión de diccionario personalizado
+        self.dictionary_manager = DictionaryManager()
         self._chunk_size_seconds = 30  # Procesar en chunks de 30 segundos
         self._max_file_size_chunked = (
             500 * 1024 * 1024
@@ -631,6 +636,8 @@ class TranscriberEngine:
                                         "type": "new_segment",
                                         "text": text + " ",
                                         "idx": idx,
+                                        "start": info["start_time"],
+                                        "end": info["start_time"] + info["duration"]
                                     }
                                 )
 
@@ -672,7 +679,13 @@ class TranscriberEngine:
                             live_transcription or True
                         ) and transcription_queue:  # Por defecto live en secuencial
                             transcription_queue.put(
-                                {"type": "new_segment", "text": text + " ", "idx": idx}
+                                {
+                                    "type": "new_segment",
+                                    "text": text + " ",
+                                    "idx": idx,
+                                    "start": info["start_time"],
+                                    "end": info["start_time"] + info["duration"]
+                                }
                             )
 
                     total_done = completed_chunks + failed_chunks
@@ -777,12 +790,15 @@ class TranscriberEngine:
 
             # Transcribir usando la instancia ya cargada (evita recarga de VRAM/RAM)
             effective_language = None if language == "auto" else language
+            initial_prompt = self.dictionary_manager.get_initial_prompt()
+
             segments_generator, _ = model_instance.transcribe(
                 temp_chunk_path,
                 language=effective_language,
                 beam_size=beam_size,
                 vad_filter=use_vad,
                 word_timestamps=False,
+                initial_prompt=initial_prompt,
             )
 
             chunk_text = " ".join([segment.text.strip() for segment in segments_generator])
@@ -911,6 +927,9 @@ class TranscriberEngine:
 
             effective_language = None if language == "auto" else language
 
+            effective_language = None if language == "auto" else language
+            initial_prompt = self.dictionary_manager.get_initial_prompt()
+
             transcription_queue.put(
                 {"type": "status_update", "data": "Obteniendo información del audio..."}
             )
@@ -921,6 +940,7 @@ class TranscriberEngine:
                 beam_size=selected_beam_size,
                 vad_filter=use_vad,
                 word_timestamps=perform_diarization,  # Crucial: True si hay diarización
+                initial_prompt=initial_prompt,
             )
 
             total_duration = info.duration
@@ -1028,7 +1048,12 @@ class TranscriberEngine:
                 # --- Fin Lógica de Progreso ---
 
                 if not perform_diarization:  # Solo enviar para vivo si NO hay diarización aquí
-                    transcription_queue.put({"type": "new_segment", "text": segment.text.strip()})
+                    transcription_queue.put({
+                        "type": "new_segment",
+                        "text": segment.text.strip(),
+                        "start": segment.start,
+                        "end": segment.end
+                    })
 
             final_transcribed_text = ""
             if perform_diarization:  # Volver a chequear por si se desactivó

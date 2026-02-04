@@ -5,6 +5,7 @@ import customtkinter as ctk
 from src.gui.utils.tooltips import add_tooltip
 
 from .base_component import BaseComponent
+from .microphone_tab import MicrophoneTab
 
 
 class Tabs(BaseComponent):
@@ -24,8 +25,16 @@ class Tabs(BaseComponent):
         perform_diarization_var,
         live_transcription_var,
         parallel_processing_var,
+        mic_recorder,
+        dictionary_manager,
+        ai_provider_var,
+        ai_url_var,
+        ai_model_var,
+        ai_key_var,
         select_file_callback,
         start_youtube_callback,
+        start_mic_callback,
+        stop_mic_callback,
         on_tab_change_callback,
         validate_youtube_callback,
         **kwargs
@@ -40,10 +49,18 @@ class Tabs(BaseComponent):
         self.perform_diarization_var = perform_diarization_var
         self.live_transcription_var = live_transcription_var
         self.parallel_processing_var = parallel_processing_var
+        self.mic_recorder = mic_recorder
+        self.dictionary_manager = dictionary_manager
+        self.ai_provider_var = ai_provider_var
+        self.ai_url_var = ai_url_var
+        self.ai_model_var = ai_model_var
+        self.ai_key_var = ai_key_var
 
         # Callbacks
         self.select_file_callback = select_file_callback
         self.start_youtube_callback = start_youtube_callback
+        self.start_mic_callback = start_mic_callback
+        self.stop_mic_callback = stop_mic_callback
         self.on_tab_change_callback = on_tab_change_callback
         self.validate_youtube_callback = validate_youtube_callback
 
@@ -58,35 +75,61 @@ class Tabs(BaseComponent):
         self.grid_columnconfigure(0, weight=1)
 
         # Tabs modernos
-        self.input_tabs = ctk.CTkTabview(
+        self.input_tabs = ctk.CTkSegmentedButton(
             self,
-            height=280,
-            corner_radius=radius - 2,
-            fg_color=self._get_color("surface"),
-            segmented_button_fg_color=self._get_color("surface_elevated"),
-            segmented_button_selected_color=self._get_color("surface"),
-            segmented_button_selected_hover_color=self._get_color("surface"),
-            segmented_button_unselected_color=self._get_color("surface_elevated"),
-            segmented_button_unselected_hover_color=self._get_color("surface_elevated"),
-            text_color=self._get_color("text_secondary"),
-            text_color_disabled=self._get_color("text_muted"),
-            command=self.on_tab_change_callback,
+            values=["    Archivo Local    ", "    YouTube    ", "    Micrófono    ", "    Configuración    "],
+            command=self._on_segment_change,
+            font=("Segoe UI", 13, "bold"),
+            height=40,
+            dynamic_resizing=False,
+            selected_color=self._get_color("primary"),
+            selected_hover_color=self._get_color("primary_hover"),
+            unselected_color=self._get_color("surface_elevated"),
+            unselected_hover_color=self._get_color("border_hover"),
+            text_color=self._get_color("text"),
         )
-        self.input_tabs.grid(row=0, column=0, padx=16, pady=16, sticky="nsew")
+        self.input_tabs.grid(row=0, column=0, padx=16, pady=16, sticky="ew")
 
-        # Crear tabs
+        # Contenedor para los contenidos de los tabs
+        self.tab_content_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.tab_content_frame.grid(row=1, column=0, padx=16, pady=(0, 16), sticky="nsew")
+        self.tab_content_frame.grid_columnconfigure(0, weight=1)
+        self.tab_content_frame.grid_rowconfigure(0, weight=1)
+
+        # Crear frames para cada tab
         self._create_file_tab()
         self._create_youtube_tab()
+        self._create_microphone_tab()
         self._create_config_tab()
 
         # Seleccionar tab por defecto
         self.input_tabs.set("    Archivo Local    ")
+        self.show_tab_content("    Archivo Local    ")
+
+    def _on_segment_change(self, value):
+        self.show_tab_content(value)
+        self.on_tab_change_callback()
+
+    def show_tab_content(self, tab_name):
+        # Ocultar todos los frames de contenido
+        for frame in [self.file_frame, self.youtube_frame, self.mic_frame, self.config_frame]:
+            frame.grid_remove()
+
+        # Mostrar el frame correspondiente al tab seleccionado
+        if tab_name == "    Archivo Local    ":
+            self.file_frame.grid(row=0, column=0, sticky="nsew")
+        elif tab_name == "    YouTube    ":
+            self.youtube_frame.grid(row=0, column=0, sticky="nsew")
+        elif tab_name == "    Micrófono    ":
+            self.mic_frame.grid(row=0, column=0, sticky="nsew")
+        elif tab_name == "    Configuración    ":
+            self.config_frame.grid(row=0, column=0, sticky="nsew")
 
     def _create_file_tab(self):
-        tab = self.input_tabs.add("    Archivo Local    ")
-        tab.grid_columnconfigure(0, weight=1)
+        self.file_frame = ctk.CTkFrame(self.tab_content_frame, fg_color="transparent")
+        self.file_frame.grid_columnconfigure(0, weight=1)
 
-        container = ctk.CTkFrame(tab, fg_color="transparent")
+        container = ctk.CTkFrame(self.file_frame, fg_color="transparent")
         container.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
         container.grid_columnconfigure(0, weight=1)
 
@@ -140,10 +183,10 @@ class Tabs(BaseComponent):
         formats_label.grid(row=2, column=0, sticky="w")
 
     def _create_youtube_tab(self):
-        tab = self.input_tabs.add("    YouTube    ")
-        tab.grid_columnconfigure(0, weight=1)
+        self.youtube_frame = ctk.CTkFrame(self.tab_content_frame, fg_color="transparent")
+        self.youtube_frame.grid_columnconfigure(0, weight=1)
 
-        container = ctk.CTkFrame(tab, fg_color="transparent")
+        container = ctk.CTkFrame(self.youtube_frame, fg_color="transparent")
         container.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
         container.grid_columnconfigure(0, weight=1)
 
@@ -200,11 +243,22 @@ class Tabs(BaseComponent):
         )
         info_label.grid(row=2, column=0, sticky="w")
 
-    def _create_config_tab(self):
-        tab = self.input_tabs.add("    Configuración    ")
-        tab.grid_columnconfigure(0, weight=1)
+    def _create_microphone_tab(self):
+        """Crea la pestaña de grabación desde micrófono."""
+        self.mic_frame = MicrophoneTab(
+            self.tab_content_frame,
+            self.theme_manager,
+            self.mic_recorder,
+            self.start_mic_callback,
+            self.stop_mic_callback
+        )
+        self.mic_frame.grid_columnconfigure(0, weight=1)
 
-        scroll = ctk.CTkScrollableFrame(tab, fg_color="transparent", height=220)
+    def _create_config_tab(self):
+        self.config_frame = ctk.CTkFrame(self.tab_content_frame, fg_color="transparent")
+        self.config_frame.grid_columnconfigure(0, weight=1)
+
+        scroll = ctk.CTkScrollableFrame(self.config_frame, fg_color="transparent", height=220)
         scroll.grid(row=0, column=0, padx=16, pady=16, sticky="nsew")
         scroll.grid_columnconfigure((0, 1), weight=1)
 
@@ -278,7 +332,7 @@ class Tabs(BaseComponent):
         self.advanced_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         self.advanced_frame.grid(row=1, column=0, columnspan=2, sticky="ew")
         self.advanced_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
-        self.advanced_frame.grid_remove()
+        # self.advanced_frame.grid_remove() # Keep it visible for now, or add a toggle
 
         beam_container = ctk.CTkFrame(self.advanced_frame, fg_color="transparent")
         beam_container.grid(row=0, column=0, padx=8, pady=8, sticky="w")
@@ -373,19 +427,129 @@ class Tabs(BaseComponent):
             self.parallel_checkbox, "Usa múltiples núcleos para procesamiento más rápido", 400
         )
 
+        # Sección de Diccionario Personalizado
+        dict_separator = ctk.CTkFrame(scroll, height=2, fg_color=self._get_color("border"))
+        dict_separator.grid(row=2, column=0, columnspan=2, sticky="ew", pady=20)
+
+        dict_title_label = ctk.CTkLabel(
+            scroll,
+            text="Diccionario Personalizado",
+            font=("Segoe UI", 14, "bold"),
+            text_color=self._get_color("text"),
+        )
+        dict_title_label.grid(row=3, column=0, columnspan=2, sticky="w", padx=8)
+
+        dict_desc_label = ctk.CTkLabel(
+            scroll,
+            text="Añade palabras técnicas o nombres propios para mejorar la precisión.",
+            font=("Segoe UI", 11),
+            text_color=self._get_color("text_muted"),
+        )
+        dict_desc_label.grid(row=4, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 10))
+
+        dict_input_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        dict_input_frame.grid(row=5, column=0, columnspan=2, sticky="ew", padx=8)
+        dict_input_frame.grid_columnconfigure(0, weight=1)
+
+        self.dict_entry = ctk.CTkEntry(
+            dict_input_frame,
+            placeholder_text="Ej: Kubernetes, PyTorch, Antigravity...",
+            font=("Segoe UI", 12),
+            height=35,
+        )
+        self.dict_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+
+        self.add_term_button = ctk.CTkButton(
+            dict_input_frame,
+            text="Añadir",
+            width=80,
+            height=35,
+            command=self._add_dictionary_term,
+        )
+        self.add_term_button.grid(row=0, column=1)
+
+        # Lista de términos (usaremos un frame con scroll interno o simplemente un label con tags)
+        self.terms_container = ctk.CTkFrame(scroll, fg_color=self._get_color("background"), corner_radius=8, border_width=1, border_color=self._get_color("border"))
+        self.terms_container.grid(row=6, column=0, columnspan=2, sticky="ew", padx=8, pady=10)
+        self.terms_container.grid_columnconfigure(0, weight=1)
+        
+        self.terms_label = ctk.CTkLabel(
+            self.terms_container,
+            text="Cargando términos...",
+            font=("Segoe UI", 12),
+            text_color=self._get_color("text_secondary"),
+            wraplength=500,
+            justify="left",
+            anchor="w",
+        )
+        self.terms_label.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        
+        self._refresh_terms_display()
+
+        # Sección de IA Local (LLM)
+        ai_separator = ctk.CTkFrame(scroll, height=2, fg_color=self._get_color("border"))
+        ai_separator.grid(row=7, column=0, columnspan=2, sticky="ew", pady=20)
+
+        ai_title_label = ctk.CTkLabel(
+            scroll,
+            text="Inteligencia Artificial Local (LLM)",
+            font=("Segoe UI", 14, "bold"),
+            text_color=self._get_color("text"),
+        )
+        ai_title_label.grid(row=8, column=0, columnspan=2, sticky="w", padx=8)
+
+        # Campos de configuración de IA
+        ai_config_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        ai_config_frame.grid(row=9, column=0, columnspan=2, sticky="ew", padx=8, pady=10)
+        ai_config_frame.grid_columnconfigure((1, 3), weight=1)
+
+        # Proveedor
+        ctk.CTkLabel(ai_config_frame, text="Proveedor:", font=("Segoe UI", 12)).grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.ai_provider_combo = ctk.CTkComboBox(
+            ai_config_frame,
+            values=["Ollama", "LM Studio", "Otro (OpenAI compatible)"],
+            variable=self.ai_provider_var,
+            width=150,
+        )
+        self.ai_provider_combo.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+
+        # Modelo
+        ctk.CTkLabel(ai_config_frame, text="Modelo:", font=("Segoe UI", 12)).grid(row=0, column=2, padx=5, pady=5, sticky="e")
+        self.ai_model_entry = ctk.CTkEntry(ai_config_frame, textvariable=self.ai_model_var, placeholder_text="llama3, mistral...")
+        self.ai_model_entry.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
+
+        # URL API
+        ctk.CTkLabel(ai_config_frame, text="Endpoint URL:", font=("Segoe UI", 12)).grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        self.ai_url_entry = ctk.CTkEntry(ai_config_frame, textvariable=self.ai_url_var, placeholder_text="http://localhost:11434/v1")
+        self.ai_url_entry.grid(row=1, column=1, columnspan=3, padx=5, pady=5, sticky="ew")
+
+    def _add_dictionary_term(self):
+        """Añade un término al diccionario y actualiza la UI."""
+        term = self.dict_entry.get().strip()
+        if term:
+            if self.dictionary_manager.add_term(term):
+                self.dict_entry.delete(0, "end")
+                self._refresh_terms_display()
+
+    def _refresh_terms_display(self):
+        """Actualiza el label que muestra los términos del diccionario."""
+        terms = self.dictionary_manager.get_all_terms()
+        if not terms:
+            self.terms_label.configure(text="Sin términos personalizados.")
+        else:
+            self.terms_label.configure(text=", ".join(terms))
+
     def apply_theme(self):
         """Aplica el tema actual a los widgets."""
-        radius = self._get_border_radius("xl")
         self.configure(fg_color=self._get_color("surface"), border_color=self._get_color("border"))
         self.input_tabs.configure(
-            fg_color=self._get_color("surface"),
-            segmented_button_fg_color=self._get_color("surface_elevated"),
-            segmented_button_selected_color=self._get_color("surface"),
-            segmented_button_selected_hover_color=self._get_color("surface"),
-            segmented_button_unselected_color=self._get_color("surface_elevated"),
-            segmented_button_unselected_hover_color=self._get_color("surface_elevated"),
-            text_color=self._get_color("text_secondary"),
-            text_color_disabled=self._get_color("text_muted"),
+            selected_color=self._get_color("primary"),
+            selected_hover_color=self._get_color("primary_hover"),
+            unselected_color=self._get_color("surface_elevated"),
+            unselected_hover_color=self._get_color("border_hover"),
+            text_color=self._get_color("text"),
         )
-        # Podría ampliar esto para refrescar todos los sub-widgets si fuera necesario
-        # pero CTk maneja la mayoría de los cambios de color_tuple automáticamente.
+        # Aplicar a los frames internos
+        for frame in [self.file_frame, self.youtube_frame, self.mic_frame, self.config_frame]:
+            if hasattr(frame, "apply_theme"):
+                frame.apply_theme()

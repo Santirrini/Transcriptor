@@ -44,6 +44,13 @@ from src.gui.components.update_notification import (
     UpdateNotificationManager,
     show_update_banner,
 )
+from src.core.subtitle_exporter import SubtitleExporter
+from src.core.microphone_recorder import MicrophoneRecorder
+from src.core.statistics import StatisticsCalculator
+from src.core.minutes_generator import MinutesGenerator
+from src.core.ai_handler import AIHandler
+from src.core.semantic_search import SemanticSearch
+from src.gui.components.statistics_panel import StatisticsPanel
 from src.gui.theme import theme_manager
 from src.gui.utils.tooltips import add_tooltip
 
@@ -119,6 +126,7 @@ class MainWindow(ctk.CTk):
         self.transcriber_engine.gui_queue = self.transcription_queue
         self.transcribed_text = ""
         self.fragment_data = {}
+        self.raw_segments = []  # Para exportación de subtítulos
         self._is_paused = False
         self.is_transcribing = False
         self._total_audio_duration = 0.0
@@ -128,6 +136,13 @@ class MainWindow(ctk.CTk):
         self._current_ui_state = self.UI_STATE_IDLE
         self.fragment_buttons = []
         self.current_fragment = 0
+
+        # Inicializar nuevos módulos core
+        self.subtitle_exporter = SubtitleExporter()
+        self.mic_recorder = MicrophoneRecorder(gui_queue=self.transcription_queue)
+        self.stats_calculator = StatisticsCalculator()
+        self.minutes_generator = MinutesGenerator()
+        
 
         # Configuración de ventana
         self.title("DesktopWhisperTranscriber")
@@ -148,7 +163,21 @@ class MainWindow(ctk.CTk):
         self.perform_diarization_var = ctk.BooleanVar(value=False)
         self.live_transcription_var = ctk.BooleanVar(value=False)
         self.parallel_processing_var = ctk.BooleanVar(value=False)
+
+        # Variables para IA Local (LLM)
+        self.ai_provider_var = ctk.StringVar(value="Ollama")
+        self.ai_url_var = ctk.StringVar(value="http://localhost:11434/v1")
+        self.ai_model_var = ctk.StringVar(value="llama3")
+        self.ai_key_var = ctk.StringVar(value="not-needed")
         self.theme_var = ctk.BooleanVar(value=theme_manager.current_mode == "dark")
+
+        # Inicialización de componentes de IA (Movido aquí para evitar AttributeError)
+        self.ai_handler = AIHandler(
+            base_url=self.ai_url_var.get(),
+            model_name=self.ai_model_var.get(),
+            api_key=self.ai_key_var.get()
+        )
+        self.semantic_search = SemanticSearch(self.ai_handler)
 
         # Configurar observer del tema
         theme_manager.add_observer(self._on_theme_change)
@@ -408,8 +437,16 @@ class MainWindow(ctk.CTk):
             self.perform_diarization_var,
             self.live_transcription_var,
             self.parallel_processing_var,
+            self.mic_recorder,
+            self.transcriber_engine.dictionary_manager,
+            self.ai_provider_var,
+            self.ai_url_var,
+            self.ai_model_var,
+            self.ai_key_var,
             self.select_audio_file,
             self.start_youtube_transcription_thread,
+            self.start_microphone_recording,
+            self.stop_microphone_recording,
             self._on_tab_change,
             self._validate_youtube_input,
         )
@@ -421,16 +458,29 @@ class MainWindow(ctk.CTk):
         self.fragments_section = FragmentsSection(self.content_scroll, theme_manager)
         self.fragments_section.grid(row=2, column=0, sticky="ew", pady=(0, 16))
 
-        self.transcription_area = TranscriptionArea(self.content_scroll, theme_manager)
+        self.transcription_area = TranscriptionArea(
+            self.content_scroll, 
+            theme_manager,
+            on_save_callback=self._on_transcription_saved,
+            on_search_callback=self.search_semantic
+        )
         self.transcription_area.grid(row=3, column=0, sticky="nsew", pady=(0, 16))
+
+        self.statistics_panel = StatisticsPanel(self.content_scroll, theme_manager)
+        self.statistics_panel.grid(row=4, column=0, sticky="ew", pady=(0, 16))
 
         self.action_buttons = ActionButtons(
             self.content_scroll,
             theme_manager,
             self.save_transcription_txt,
             self.save_transcription_pdf,
+            self.save_transcription_srt,
+            self.save_transcription_vtt,
+            self.generate_minutes,
+            self.summarize_ai,
+            self.analyze_sentiment_ai,
         )
-        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 24))
+        self.action_buttons.grid(row=5, column=0, sticky="ew", pady=(0, 24))
 
         # Footer fijo
         self.footer = Footer(
@@ -448,10 +498,11 @@ class MainWindow(ctk.CTk):
 
     def _on_mode_change(self, mode):
         """Muestra u oculta opciones avanzadas según el modo."""
-        if mode == "Avanzado":
-            self.advanced_frame.grid()
-        else:
-            self.advanced_frame.grid_remove()
+        if hasattr(self, 'tabs') and hasattr(self.tabs, 'advanced_frame'):
+            if mode == "Avanzado":
+                self.tabs.advanced_frame.grid()
+            else:
+                self.tabs.advanced_frame.grid_remove()
 
     def _toggle_theme(self):
         """Alterna entre tema claro y oscuro."""
@@ -462,11 +513,13 @@ class MainWindow(ctk.CTk):
 
     def _validate_youtube_input(self, event=None):
         """Valida la URL de YouTube en tiempo real."""
-        url = self.youtube_url_entry.get()
-        if self._validate_youtube_url(url):
-            self.transcribe_youtube_button.configure(state="normal")
-        else:
-            self.transcribe_youtube_button.configure(state="disabled")
+        # Acceder a los widgets a través del componente Tabs
+        if hasattr(self, 'tabs') and hasattr(self.tabs, 'youtube_url_entry'):
+            url = self.tabs.youtube_url_entry.get()
+            if self._validate_youtube_url(url):
+                self.tabs.transcribe_youtube_button.configure(state="normal")
+            else:
+                self.tabs.transcribe_youtube_button.configure(state="disabled")
 
     def _validate_youtube_url(self, url):
         """Valida si la URL es de YouTube."""
@@ -617,6 +670,7 @@ class MainWindow(ctk.CTk):
         self._clear_transcription_area()
         self._clear_fragments()
         self.fragment_data = {}
+        self.raw_segments = []  # Limpiar segmentos crudos
         self.current_fragment = 0
         self._is_paused = False
         self._clear_queue()
@@ -625,6 +679,9 @@ class MainWindow(ctk.CTk):
         self.progress_section.progress_bar.set(0)
         self.progress_section.progress_label.configure(text="0%")
         self.progress_section.stats_label.configure(text="")
+        
+        # Reset panel de estadísticas
+        self.statistics_panel.reset()
 
     def _clear_transcription_area(self):
         """Limpia el área de transcripción."""
@@ -705,6 +762,15 @@ class MainWindow(ctk.CTk):
         elif msg_type == "new_segment":
             segment_text = msg.get("text", "")
             idx = msg.get("idx")
+            start = msg.get("start")
+            end = msg.get("end")
+
+            # Almacenar segmento crudo para subtítulos
+            self.raw_segments.append({
+                "text": segment_text,
+                "start": start,
+                "end": end
+            })
 
             if idx is not None:
                 # Almacenar fragmento por su índice
@@ -729,6 +795,10 @@ class MainWindow(ctk.CTk):
             self._update_word_count()
             self._create_fragment_buttons()
             self._set_ui_state(self.UI_STATE_COMPLETED)
+
+            # Calcular y mostrar estadísticas
+            stats = self.stats_calculator.calculate(final_text, self._total_audio_duration)
+            self.statistics_panel.update_stats(stats)
 
             # Mostrar mensaje con el tiempo real de transcripción
             completion_msg = f"Transcripción completada en {self._format_time(real_time)}"
@@ -761,6 +831,19 @@ class MainWindow(ctk.CTk):
             self.progress_section.progress_label.configure(text=f"{percentage:.1f}%")
             filename = data.get("filename", "")
             self.progress_section.status_label.configure(text=f"Descargando: {filename}")
+
+        # Mensajes de grabación
+        elif msg_type == "recording_started":
+            self.progress_section.status_label.configure(text="Grabando desde el micrófono...")
+        elif msg_type == "recording_completed":
+            filepath = msg.get("filepath")
+            self.audio_filepath = filepath
+            filename = os.path.basename(filepath)
+            self.tabs.file_label.configure(text=filename, text_color=self._get_color("text"))
+            self.progress_section.status_label.configure(text="Grabación completada. Lista para transcribir.")
+            # Cambiar automáticamente al tab de archivo para mostrar el resultado
+            self.tabs.input_tabs.set("    Archivo Local    ")
+            self.tabs.show_tab_content("    Archivo Local    ")
 
     def _format_time(self, seconds):
         """Formatea segundos a formato legible."""
@@ -1035,7 +1118,7 @@ class MainWindow(ctk.CTk):
 
     def save_transcription_txt(self):
         """Guarda la transcripción como archivo TXT."""
-        text = self.transcription_textbox.get("1.0", "end-1c")
+        text = self.transcription_area.get_text()
         if not text:
             messagebox.showwarning("Sin texto", "No hay transcripción para guardar.")
             return
@@ -1062,7 +1145,7 @@ class MainWindow(ctk.CTk):
 
     def save_transcription_pdf(self):
         """Guarda la transcripción como archivo PDF."""
-        text = self.transcription_textbox.get("1.0", "end-1c")
+        text = self.transcription_area.get_text()
         if not text:
             messagebox.showwarning("Sin texto", "No hay transcripción para guardar.")
             return
@@ -1086,6 +1169,152 @@ class MainWindow(ctk.CTk):
                 messagebox.showinfo("Éxito", "Transcripción guardada correctamente.")
             except Exception as e:
                 messagebox.showerror("Error", f"Error al guardar: {e}")
+
+    def save_transcription_srt(self):
+        """Guarda la transcripción en formato SRT."""
+        if not self.raw_segments and not self.transcribed_text:
+            messagebox.showwarning("Sin datos", "No hay transcripción para guardar.")
+            return
+
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".srt",
+            filetypes=[("SRT Subtitles", "*.srt"), ("All files", "*.*")],
+            title="Guardar como SRT",
+        )
+
+        if filepath:
+            try:
+                # Si tenemos segmentos crudos (de chunks o procesados), usarlos
+                if self.raw_segments:
+                    # Convertir formato de TranscriberEngine a SubtitleSegment dict
+                    # (SubtitleExporter espera una lista de diccionarios o similares)
+                    segments = []
+                    for seg in self.raw_segments:
+                        # Asegurar que tenemos timestamps
+                        start = seg.get("start", 0.0)
+                        end = seg.get("end", start + 5.0)
+                        segments.append({
+                            "text": seg["text"],
+                            "start_time": start,
+                            "end_time": end
+                        })
+                    
+                    subtitle_segments = self.subtitle_exporter.segments_from_fragments(segments)
+                    self.subtitle_exporter.save_srt(subtitle_segments, filepath)
+                else:
+                    # Fallback si no hay timestamps precisos
+                    self.subtitle_exporter.save_from_text_with_duration(
+                        self.transcribed_text,
+                        self._total_audio_duration or 60.0,
+                        filepath,
+                        format_type="srt"
+                    )
+                
+                self.progress_section.status_label.configure(text=f"SRT guardado en: {os.path.basename(filepath)}")
+                messagebox.showinfo("Éxito", "Subtítulos SRT guardados correctamente.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al guardar SRT: {e}")
+
+    def save_transcription_vtt(self):
+        """Guarda la transcripción en formato VTT."""
+        if not self.raw_segments and not self.transcribed_text:
+            messagebox.showwarning("Sin datos", "No hay transcripción para guardar.")
+            return
+
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".vtt",
+            filetypes=[("WebVTT Subtitles", "*.vtt"), ("All files", "*.*")],
+            title="Guardar como VTT",
+        )
+
+        if filepath:
+            try:
+                if self.raw_segments:
+                    segments = []
+                    for seg in self.raw_segments:
+                        start = seg.get("start", 0.0)
+                        end = seg.get("end", start + 5.0)
+                        segments.append({
+                            "text": seg["text"],
+                            "start_time": start,
+                            "end_time": end
+                        })
+                    
+                    subtitle_segments = self.subtitle_exporter.segments_from_fragments(segments)
+                    self.subtitle_exporter.save_vtt(subtitle_segments, filepath)
+                else:
+                    self.subtitle_exporter.save_from_text_with_duration(
+                        self.transcribed_text,
+                        self._total_audio_duration or 60.0,
+                        filepath,
+                        format_type="vtt"
+                    )
+                
+                self.progress_section.status_label.configure(text=f"VTT guardado en: {os.path.basename(filepath)}")
+                messagebox.showinfo("Éxito", "Subtítulos VTT guardados correctamente.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al guardar VTT: {e}")
+
+    def generate_minutes(self):
+        """Genera y muestra las minutas de la reunión."""
+        text = self.transcription_area.get_text()
+        if not text:
+            messagebox.showwarning("Sin texto", "No hay transcripción para analizar.")
+            return
+
+        try:
+            self.progress_section.status_label.configure(text="Generando minutas...")
+            minutes = self.minutes_generator.generate(text)
+            formatted_minutes = self.minutes_generator.format_as_text(minutes)
+            
+            # Mostrar en el área de transcripción (podemos preguntar si reemplazar o añadir)
+            if messagebox.askyesno("Minuta Generada", "¿Deseas reemplazar el texto actual con la minuta generada?\n\n(Puedes deshacer este cambio después)"):
+                self.transcription_area.set_text(formatted_minutes)
+                self.progress_section.status_label.configure(text="Minuta generada y aplicada.")
+            else:
+                # O simplemente guardarla en un archivo
+                filepath = filedialog.asksaveasfilename(
+                    defaultextension=".txt",
+                    filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+                    initialfilename=f"Minuta_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                    title="Guardar Minuta de Reunión",
+                )
+                if filepath:
+                    with open(filepath, "w", encoding="utf-8") as f:
+                        f.write(formatted_minutes)
+                    self.progress_section.status_label.configure(text=f"Minuta guardada en: {os.path.basename(filepath)}")
+                    messagebox.showinfo("Éxito", "Minuta guardada correctamente.")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al generar minutas: {e}")
+            self.progress_section.status_label.configure(text="Error al generar minutas.")
+
+    def start_microphone_recording(self):
+        """Inicia la grabación desde el micrófono."""
+        if not self.mic_recorder.is_available():
+            messagebox.showerror("Error", "PyAudio no está instalado. No se puede grabar.")
+            return
+            
+        try:
+            self.mic_recorder.start_recording()
+            self.footer.set_transcribing(True) # Reusar estado de UI para mostrar controles
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al iniciar grabación: {e}")
+
+    def stop_microphone_recording(self):
+        """Detiene la grabación desde el micrófono."""
+        try:
+            self.mic_recorder.stop_recording()
+            self.footer.set_transcribing(False)
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al detener grabación: {e}")
+
+    def _on_transcription_saved(self, new_text):
+        """Maneja el guardado del texto desde el editor."""
+        self.transcribed_text = new_text
+        self._update_word_count()
+        self.progress_section.status_label.configure(text="Cambios guardados exitosamente.")
+        logger.info("Transcripción actualizada manualmente por el usuario.")
 
     def copy_specific_fragment(self, fragment_number):
         """Copia un fragmento específico al portapapeles."""
@@ -1111,6 +1340,93 @@ class MainWindow(ctk.CTk):
         theme_manager.remove_observer(self._on_theme_change)
         self.destroy()
 
+
+    def summarize_ai(self):
+        """Genera un resumen usando el LLM local."""
+        text = self.transcription_area.get_text()
+        if not text:
+            messagebox.showwarning("Sin texto", "No hay transcripción para resumir.")
+            return
+
+        self.progress_section.status_label.configure(text="Generando resumen IA...")
+        self._update_ai_config()
+        
+        def run_summary():
+            summary = self.ai_handler.summarize(text)
+            self.after(0, lambda: self._show_ai_result("Resumen IA", summary))
+
+        import threading
+        threading.Thread(target=run_summary, daemon=True).start()
+
+    def analyze_sentiment_ai(self):
+        """Analiza el sentimiento usando el LLM local."""
+        text = self.transcription_area.get_text()
+        if not text:
+            messagebox.showwarning("Sin texto", "No hay transcripción para analizar.")
+            return
+
+        self.progress_section.status_label.configure(text="Analizando sentimiento...")
+        self._update_ai_config()
+
+        def run_sentiment():
+            sentiment = self.ai_handler.analyze_sentiment(text)
+            self.after(0, lambda: self._show_ai_result("Análisis de Sentimiento", sentiment))
+
+        import threading
+        threading.Thread(target=run_sentiment, daemon=True).start()
+
+    def search_semantic(self, query):
+        """Realiza una búsqueda semántica en la transcripción actual."""
+        if not self.raw_segments:
+            # Si no hay segmentos crudos, intentamos con el texto completo pero es menos efectivo
+            messagebox.showwarning("Sin datos", "Realiza una transcripción primero para habilitar búsqueda semántica.")
+            return
+
+        self._update_ai_config()
+        self.progress_section.status_label.configure(text=f"Buscando semánticamente: {query}")
+
+        def run_search():
+            # Indexar si no se ha hecho para esta transcripción
+            if not self.semantic_search.segments:
+                segments = [{"text": s["text"], "start": s.get("start", 0), "end": s.get("end", 0)} for s in self.raw_segments]
+                self.semantic_search.index_segments(segments)
+            
+            results = self.semantic_search.search(query)
+            self.after(0, lambda: self._show_search_results(results))
+
+        import threading
+        threading.Thread(target=run_search, daemon=True).start()
+
+    def _update_ai_config(self):
+        """Sincroniza el AIHandler con los valores de la UI."""
+        self.ai_handler.update_config(
+            base_url=self.ai_url_var.get(),
+            model_name=self.ai_model_var.get(),
+            api_key=self.ai_key_var.get()
+        )
+
+    def _show_ai_result(self, title, result):
+        """Muestra el resultado de una operación de IA."""
+        self.progress_section.status_label.configure(text="Procesamiento IA completado.")
+        if not result:
+            messagebox.showerror("Error", "No se recibió respuesta del modelo local.")
+            return
+            
+        if messagebox.askyesno(title, f"{result}\n\n¿Deseas añadir este resultado al final del texto?"):
+            current_text = self.transcription_area.get_text()
+            self.transcription_area.set_text(f"{current_text}\n\n--- {title} ---\n{result}")
+
+    def _show_search_results(self, results):
+        """Muestra los resultados de la búsqueda semántica."""
+        if not results:
+            messagebox.showinfo("Búsqueda Semántica", "No se encontraron resultados relevantes.")
+            return
+            
+        msg = "Top resultados encontrados:\n\n"
+        for r in results:
+            msg += f"[{r['start']:.1f}s] (Similitud: {r['score']:.2f}):\n{r['text'][:100]}...\n\n"
+        
+        messagebox.showinfo("Resultados Semánticos", msg)
 
 if __name__ == "__main__":
     # Para pruebas standalone
