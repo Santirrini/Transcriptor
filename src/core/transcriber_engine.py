@@ -623,6 +623,7 @@ class TranscriberEngine:
                         if self._cancel_event.is_set():
                             break
 
+                        info = future_to_chunk[future]
                         idx, text, error = future.result()
                         if error:
                             failed_chunks += 1

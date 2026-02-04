@@ -1008,7 +1008,7 @@ class MainWindow(ctk.CTk):
             )
 
         elif state == self.UI_STATE_ERROR:
-            self.footer.start_transcription_button.configure(state="normal")
+            self.footer.transcribe_button.configure(state="normal")
             self.footer.pause_button.configure(state="disabled", text="⏸ Pausar")
             self.footer.reset_button.configure(state="normal")
             self.action_buttons.copy_button.configure(state="normal")
