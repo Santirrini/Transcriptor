@@ -1219,19 +1219,24 @@ class TranscriberEngine:
     def save_transcription_pdf(self, text: str, filepath: str):
         return self.exporter.save_transcription_pdf(text, filepath)
 
-    def download_audio_from_youtube(self, youtube_url, output_dir=None):
+    def download_audio_from_url(self, video_url, output_dir=None):
         """
-        Descarga el audio de una URL de YouTube y lo convierte a formato WAV estándar.
+        Descarga el audio de una URL de video (YouTube, Instagram, Facebook, etc.)
+        y lo convierte a formato WAV estándar.
         """
         self.audio_handler.gui_queue = self.gui_queue
-        return self.audio_handler.download_audio_from_youtube(youtube_url, output_dir)
+        return self.audio_handler.download_audio_from_url(video_url, output_dir)
+
+    def download_audio_from_youtube(self, youtube_url, output_dir=None):
+        """Alias para compatibilidad."""
+        return self.download_audio_from_url(youtube_url, output_dir)
 
     def _yt_dlp_progress_hook(self, d):
         return self.audio_handler._yt_dlp_progress_hook(d)
 
-    def transcribe_youtube_audio_threaded(
+    def transcribe_video_url_threaded(
         self,
-        youtube_url,
+        video_url,
         language,
         selected_model_size,
         beam_size,
@@ -1241,7 +1246,7 @@ class TranscriberEngine:
         parallel_processing=False,
     ):
         """
-        Método de hilo para descargar y luego transcribir audio de YouTube.
+        Método de hilo para descargar y luego transcribir audio de una URL de video.
         """
         # 1. Descargar el audio
         # self.reset_cancellation_flags() # Asegúrate de que las banderas de cancelación estén limpias - ESTO DEBE ESTAR EN LA GUI
@@ -1256,8 +1261,8 @@ class TranscriberEngine:
         youtube_downloads_dir = os.path.join(os.getcwd(), "youtube_downloads")
         os.makedirs(youtube_downloads_dir, exist_ok=True)
 
-        audio_filepath = self.download_audio_from_youtube(
-            youtube_url, output_dir=youtube_downloads_dir
+        audio_filepath = self.download_audio_from_url(
+            video_url, output_dir=youtube_downloads_dir
         )
 
         if (
@@ -1332,7 +1337,7 @@ class TranscriberEngine:
             self.gui_queue.put(
                 {
                     "type": "status_update",
-                    "data": "Descarga/Transcripción de YouTube cancelada.",
+                    "data": "Descarga/Transcripción de video cancelada.",
                 }
             )  # Usar status_update
             if audio_filepath and os.path.exists(audio_filepath):  # Limpiar si se descargó algo
@@ -1342,11 +1347,15 @@ class TranscriberEngine:
                     pass
             self.current_audio_filepath = None
         else:
-            # El error ya debería haber sido enviado por download_audio_from_youtube
+            # El error ya debería haber sido enviado por download_audio_from_url
             self.gui_queue.put(
-                {"type": "status_update", "data": "Fallo al obtener audio de YouTube."}
+                {"type": "status_update", "data": "Fallo al obtener audio del video."}
             )  # Usar status_update
             self.current_audio_filepath = None
+
+    def transcribe_youtube_audio_threaded(self, *args, **kwargs):
+        """Alias para compatibilidad."""
+        return self.transcribe_video_url_threaded(*args, **kwargs)
 
         # Asegurarse de que el estado final refleja la finalización o el fallo
         # Esto podría ser redundante si _perform_transcription y download_audio_from_youtube

@@ -55,53 +55,7 @@ from src.gui.theme import theme_manager
 from src.gui.utils.tooltips import add_tooltip
 
 
-def validate_youtube_url(url: str) -> bool:
-    """
-    Valida que una URL sea una URL válida de YouTube.
-
-    Previene SSRF y ejecución de URLs no válidas o maliciosas.
-
-    Args:
-        url: URL a validar
-
-    Returns:
-        bool: True si es una URL de YouTube válida, False en caso contrario
-    """
-    if not url or not isinstance(url, str):
-        return False
-
-    # Normalizar URL
-    url = url.strip().lower()
-
-    # Rechazar protocolos peligrosos
-    if url.startswith("file://") or url.startswith("javascript:"):
-        return False
-
-    # Patrones válidos de YouTube
-    youtube_patterns = [
-        r"^https?://(www\.)?youtube\.com/watch\?v=[a-z0-9_-]+",
-        r"^https?://(www\.)?youtu\.be/[a-z0-9_-]+",
-        r"^https?://(www\.)?youtube\.com/shorts/[a-z0-9_-]+",
-        r"^https?://(www\.)?youtube\.com/embed/[a-z0-9_-]+",
-        r"^(www\.)?youtube\.com/watch\?v=[a-z0-9_-]+",
-        r"^youtube\.com/watch\?v=[a-z0-9_-]+",
-    ]
-
-    for pattern in youtube_patterns:
-        if re.match(pattern, url, re.IGNORECASE):
-            # Verificar que tenga un ID de video válido (no vacío)
-            if "v=" in url:
-                video_id = url.split("v=")[-1].split("&")[0]
-                if len(video_id) < 5:
-                    return False
-            elif "/" in url:
-                parts = url.split("/")
-                last_part = parts[-1]
-                if "watch" not in last_part and len(last_part) < 5:
-                    return False
-            return True
-
-    return False
+# validate_youtube_url removido - se usa src.core.validators.InputValidator
 
 
 class MainWindow(ctk.CTk):
@@ -687,9 +641,9 @@ class MainWindow(ctk.CTk):
             self._get_transcription_params()
         )
 
-        # Iniciar transcripción de YouTube en un hilo separado
+        # Iniciar transcripción de video en un hilo separado
         thread = threading.Thread(
-            target=self.transcriber_engine.transcribe_youtube_audio_threaded,
+            target=self.transcriber_engine.transcribe_video_url_threaded,
             args=(
                 url,
                 lang,

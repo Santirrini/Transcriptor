@@ -16,7 +16,7 @@ sys.path.insert(0, project_root)
 
 from src.core.exceptions import AudioProcessingError, SecurityError, ValidationError
 from src.core.transcriber_engine import TranscriberEngine
-from src.gui.main_window import validate_youtube_url
+from src.core.validators import InputValidator
 
 
 class TestSecurityFixes(unittest.TestCase):
@@ -166,7 +166,7 @@ class TestSecurityFixes(unittest.TestCase):
 
         for url in valid_urls:
             with self.subTest(url=url):
-                self.assertTrue(validate_youtube_url(url), f"URL válida rechazada: {url}")
+                self.assertTrue(InputValidator.validate_youtube_url(url), f"URL válida rechazada: {url}")
 
     def test_youtube_url_validation_invalid_urls(self):
         """
@@ -188,7 +188,7 @@ class TestSecurityFixes(unittest.TestCase):
 
         for url in invalid_urls:
             with self.subTest(url=url):
-                self.assertFalse(validate_youtube_url(url), f"URL inválida aceptada: {url}")
+                self.assertFalse(InputValidator.validate_youtube_url(url), f"URL inválida aceptada: {url}")
 
     def test_huggingface_token_masking(self):
         """
