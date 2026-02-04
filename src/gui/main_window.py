@@ -676,12 +676,10 @@ class MainWindow(ctk.CTk):
         self._clear_queue()
         self._total_audio_duration = 0.0
         self._transcription_actual_time = 0.0
-        self.progress_section.progress_bar.set(0)
-        self.progress_section.progress_label.configure(text="0%")
-        self.progress_section.stats_label.configure(text="")
+        self.progress_section.reset()
         
         # Reset panel de estadísticas
-        self.statistics_panel.reset()
+        self.statistics_panel.clear()
 
     def _clear_transcription_area(self):
         """Limpia el área de transcripción."""
@@ -691,17 +689,8 @@ class MainWindow(ctk.CTk):
 
     def _clear_fragments(self):
         """Limpia los fragmentos de forma eficiente."""
-        # Limpiar widgets existentes
-        widgets = self.fragments_section.fragments_inner.winfo_children()
-        if widgets:
-            # Destruir widgets en reversa para estabilidad
-            for widget in reversed(widgets):
-                widget.destroy()
-
+        self.fragments_section.clear()
         self.fragment_buttons = []
-        self.fragments_section.fragments_count_label.configure(text="0 fragmentos")
-        self.fragments_section.fragments_canvas.xview_moveto(0)  # Reset scroll
-        self.fragments_section._on_fragments_configure()
 
     def _clear_queue(self):
         """Limpia la cola de mensajes."""
@@ -798,7 +787,7 @@ class MainWindow(ctk.CTk):
 
             # Calcular y mostrar estadísticas
             stats = self.stats_calculator.calculate(final_text, self._total_audio_duration)
-            self.statistics_panel.update_stats(stats)
+            self.statistics_panel.update_statistics(stats)
 
             # Mostrar mensaje con el tiempo real de transcripción
             completion_msg = f"Transcripción completada en {self._format_time(real_time)}"
@@ -856,9 +845,8 @@ class MainWindow(ctk.CTk):
 
     def _update_word_count(self):
         """Actualiza el contador de palabras."""
-        text = self.transcription_area.transcription_textbox.get("1.0", "end-1c")
-        words = len(text.split()) if text else 0
-        self.transcription_area.word_count_label.configure(text=f"{words} palabras")
+        if hasattr(self, 'transcription_area') and hasattr(self.transcription_area, 'update_word_count'):
+            self.transcription_area.update_word_count()
 
     def _create_fragment_buttons(self):
         """Crea botones para navegar entre fragmentos."""
@@ -901,8 +889,7 @@ class MainWindow(ctk.CTk):
             preview = fragment[:50].replace("\n", " ") + "..."
             add_tooltip(btn, f"Fragmento {i + 1}: {preview}", 300)
 
-        self.fragments_section.fragments_count_label.configure(text=f"{len(fragments)} fragmentos")
-        self.fragments_section._on_fragments_configure()
+        self.fragments_section.set_count(len(fragments))
 
     def _show_fragment(self, fragment_number):
         """Muestra un fragmento específico en el textbox."""
@@ -982,10 +969,7 @@ class MainWindow(ctk.CTk):
 
         add_tooltip(btn, f"Fragmento {num}: {preview}", 300)
 
-        self.fragments_section.fragments_count_label.configure(
-            text=f"{len(self.fragment_buttons)} fragmentos"
-        )
-        self.fragments_section._on_fragments_configure()
+        self.fragments_section.set_count(len(self.fragment_buttons))
 
     def _set_ui_state(self, state: str):
         """Configura el estado de la UI."""
@@ -1074,10 +1058,7 @@ class MainWindow(ctk.CTk):
         self._clear_queue()
         self._set_ui_state(self.UI_STATE_IDLE)
         self.footer.pause_button.configure(text="⏸ Pausar")
-        self.progress_section.status_label.configure(text="Listo para transcribir")
-        self.progress_section.progress_bar.set(0)
-        self.progress_section.progress_label.configure(text="0%")
-        self.progress_section.stats_label.configure(text="")
+        self.progress_section.reset()
 
     def _handle_error(self, error_msg: str):
         """Maneja errores mostrando mensajes amigables."""

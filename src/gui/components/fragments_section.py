@@ -92,9 +92,17 @@ class FragmentsSection(BaseComponent):
         """Ajusta el scroll region cuando cambia el contenido interno."""
         self.fragments_canvas.configure(scrollregion=self.fragments_canvas.bbox("all"))
 
-    def update_count(self, count):
+    def set_count(self, count):
         """Actualiza el label del contador de fragmentos."""
         self.fragments_count_label.configure(text=f"{count} fragmentos")
+        self._on_fragments_configure()
+
+    def clear(self):
+        """Limpia todos los fragmentos y reinicia el scroll."""
+        for widget in self.fragments_inner.winfo_children():
+            widget.destroy()
+        self.set_count(0)
+        self.fragments_canvas.xview_moveto(0)
 
     def apply_theme(self):
         """Aplica el tema actual."""

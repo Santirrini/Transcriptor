@@ -137,6 +137,13 @@ class TranscriptionArea(BaseComponent):
         """Inserta texto en la posición especificada."""
         self.transcription_textbox.insert(index, text)
         self.transcription_textbox.see("end")
+        self.update_word_count()
+
+    def update_word_count(self):
+        """Actualiza el contador de palabras mostrado."""
+        text = self.get_text()
+        words = len(text.split()) if text else 0
+        self.word_count_label.configure(text=f"{words} palabras")
 
     def undo(self):
         """Deshace la última acción."""
@@ -167,6 +174,7 @@ class TranscriptionArea(BaseComponent):
         """Aplica el tema actual."""
         self.configure(fg_color=self._get_color("surface"), border_color=self._get_color("border"))
         self.title_label.configure(text_color=self._get_color("text"))
+        self.word_count_label.configure(text_color=self._get_color("text_secondary"))
         self.transcription_textbox.configure(
             fg_color=self._get_color("background"),
             text_color=self._get_hex_color("text"),

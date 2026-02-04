@@ -78,6 +78,10 @@ class ProgressSection(BaseComponent):
         if stats_text is not None:
             self.stats_label.configure(text=stats_text)
 
+    def reset(self):
+        """Reinicia el estado de la barra de progreso y los labels."""
+        self.update_progress(0, status_text="Listo para transcribir", stats_text="")
+
     def apply_theme(self):
         """Aplica el tema actual."""
         self.configure(fg_color=self._get_color("surface"), border_color=self._get_color("border"))
