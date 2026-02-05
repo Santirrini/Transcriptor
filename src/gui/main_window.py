@@ -991,10 +991,10 @@ class MainWindow(ctk.CTk):
             self.footer.transcribe_button.configure(state="normal")
             self.footer.pause_button.configure(state="disabled", text="⏸ Pausar")
             self.tabs.select_file_button.configure(state="normal")
-            self.tabs.transcribe_youtube_button.configure(
+            self.tabs.transcribe_url_button.configure(
                 state=(
                     "normal"
-                    if self._validate_youtube_url(self.tabs.youtube_url_entry.get())
+                    if self._validate_video_url(self.tabs.url_video_entry.get())[0]
                     else "disabled"
                 )
             )
@@ -1003,7 +1003,7 @@ class MainWindow(ctk.CTk):
         elif state == self.UI_STATE_TRANSCRIBING:
             self.footer.set_transcribing(True, is_paused=False)
             self.tabs.select_file_button.configure(state="disabled")
-            self.tabs.transcribe_youtube_button.configure(state="disabled")
+            self.tabs.transcribe_url_button.configure(state="disabled")
 
         elif state == self.UI_STATE_PAUSED:
             self.footer.set_transcribing(True, is_paused=True)
@@ -1011,10 +1011,10 @@ class MainWindow(ctk.CTk):
         elif state == self.UI_STATE_COMPLETED:
             self.footer.set_transcribing(False)
             self.tabs.select_file_button.configure(state="normal")
-            self.tabs.transcribe_youtube_button.configure(
+            self.tabs.transcribe_url_button.configure(
                 state=(
                     "normal"
-                    if self._validate_youtube_url(self.tabs.youtube_url_entry.get())
+                    if self._validate_video_url(self.tabs.url_video_entry.get())[0]
                     else "disabled"
                 )
             )
@@ -1027,10 +1027,10 @@ class MainWindow(ctk.CTk):
             self.action_buttons.save_txt_button.configure(state="normal")
             self.action_buttons.save_pdf_button.configure(state="normal")
             self.tabs.select_file_button.configure(state="normal")
-            self.tabs.transcribe_youtube_button.configure(
+            self.tabs.transcribe_url_button.configure(
                 state=(
                     "normal"
-                    if self._validate_youtube_url(self.tabs.youtube_url_entry.get())
+                    if self._validate_video_url(self.tabs.url_video_entry.get())[0]
                     else "disabled"
                 )
             )
@@ -1062,7 +1062,7 @@ class MainWindow(ctk.CTk):
         self.tabs.file_label.configure(
             text="Ningún archivo seleccionado", text_color=self._get_color("text_muted")
         )
-        self.tabs.youtube_url_entry.delete(0, "end")
+        self.tabs.url_video_entry.delete(0, "end")
         self._clear_transcription_area()
         self._clear_fragments()
         self.fragment_data = {}
