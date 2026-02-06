@@ -8,6 +8,9 @@ class MicrophoneTab(BaseComponent):
 
     def __init__(self, parent, theme_manager, recorder: MicrophoneRecorder, 
                  start_callback, stop_callback, **kwargs):
+        self.restart_callback = kwargs.pop("restart_callback", None)
+        self.save_new_callback = kwargs.pop("save_new_callback", None)
+        
         super().__init__(parent, theme_manager, **kwargs)
 
         self.recorder = recorder
@@ -111,7 +114,40 @@ class MicrophoneTab(BaseComponent):
             hover_color="#be123c", # Rose-700
             command=self._toggle_recording
         )
-        self.record_button.grid(row=2, column=0, pady=(0, 40))
+        self.record_button.grid(row=2, column=0, pady=(0, 20))
+
+        # Controles secundarios (Reiniciar, Guardar y Nuevo)
+        self.controls_frame = ctk.CTkFrame(self.center_frame, fg_color="transparent")
+        self.controls_frame.grid(row=3, column=0, pady=(0, 20))
+        
+        if self.save_new_callback:
+            self.save_new_button = ctk.CTkButton(
+                self.controls_frame,
+                text="💾+▶ Guardar y Nuevo",
+                font=("Segoe UI", 12, "bold"),
+                height=36,
+                width=140,
+                fg_color=self._get_color("secondary"),
+                hover_color=self._get_color("secondary_hover"),
+                command=self.save_new_callback
+            )
+            self.save_new_button.pack(side="left", padx=5)
+
+        if self.restart_callback:
+            self.restart_button = ctk.CTkButton(
+                self.controls_frame,
+                text="↺ Reiniciar",
+                font=("Segoe UI", 12, "bold"),
+                height=36,
+                width=100,
+                fg_color=self._get_color("surface"),
+                hover_color=self._get_color("border_hover"),
+                text_color=self._get_color("text"),
+                command=self.restart_callback
+            )
+            self.restart_button.pack(side="left", padx=5)
+            
+        self.controls_frame.grid_remove()
 
     def _on_device_change(self, device_name):
         devices = self.recorder.list_devices()
@@ -131,6 +167,9 @@ class MicrophoneTab(BaseComponent):
         self.record_button.configure(text="⏹️ Detener", fg_color=self._get_color("text"), hover_color=self._get_color("text_secondary"))
         self.device_dropdown.configure(state="disabled")
         
+        # Mostrar controles adicionales
+        self.controls_frame.grid()
+        
         # Iniciar grabación mediante callback de MainWindow
         self.start_callback()
         
@@ -141,6 +180,9 @@ class MicrophoneTab(BaseComponent):
         self.status_label.configure(text="Grabación finalizada", text_color=self._get_color("text_secondary"))
         self.record_button.configure(text="🔴 Iniciar Grabación", fg_color="#e11d48", hover_color="#be123c")
         self.device_dropdown.configure(state="normal")
+        
+        # Ocultar controles adicionales
+        self.controls_frame.grid_remove()
         
         # Detener grabación mediante callback de MainWindow
         self.stop_callback()

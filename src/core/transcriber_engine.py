@@ -38,7 +38,6 @@ def _transcribe_chunk_worker(
             - language: Idioma
             - beam_size: Tamaño del beam
             - use_vad: Usar VAD
-            - use_vad: Usar VAD
             - ffmpeg_executable: Ruta al ejecutable FFmpeg
             - initial_prompt: Prompt inicial para Whsiper (opcional)
 
@@ -158,7 +157,7 @@ class TranscriberEngine:
         print("TranscriberEngine inicializado. Los modelos se cargarán bajo demanda.")
         self.gui_queue = None
         self.current_audio_filepath = None
-        self.cancel_event = threading.Event()
+        # Nota: Usamos self._cancel_event definido arriba, no duplicar
 
         # Nuevos atributos para procesamiento optimizado de archivos pesados
         self._process_pool = None
@@ -196,7 +195,9 @@ class TranscriberEngine:
             file_size = self._get_file_size(filepath)
 
             # Intentar conversión segura a int, si falla (ej. Mock), retornar False
-            if hasattr(file_size, "__int__") or isinstance(file_size, (int, float, str)):
+            if hasattr(file_size, "__int__") or isinstance(
+                file_size, (int, float, str)
+            ):
                 actual_size = int(file_size)
             else:
                 return False
@@ -243,14 +244,15 @@ class TranscriberEngine:
         )
         try:
             import multiprocessing as mp
+
             cpu_threads = mp.cpu_count()
-            
+
             model_instance = WhisperModel(
-                model_size, 
-                device=self.device, 
+                model_size,
+                device=self.device,
                 compute_type=self.compute_type,
                 cpu_threads=cpu_threads,
-                num_workers=cpu_threads // 2 or 1
+                num_workers=cpu_threads // 2 or 1,
             )
             self.model_cache[model_size] = model_instance
             self.current_model = model_instance
@@ -303,9 +305,7 @@ class TranscriberEngine:
 
                     # Validar que el token no esté vacío y tenga longitud mínima
                     if len(huggingface_token.strip()) < 10:
-                        error_msg = (
-                            "Token de Hugging Face inválido (demasiado corto). Verifica tu token."
-                        )
+                        error_msg = "Token de Hugging Face inválido (demasiado corto). Verifica tu token."
                         print(f"[SECURITY ERROR] {error_msg}")
                         self.diarization_pipeline = "error"
                         raise RuntimeError(error_msg)
@@ -316,7 +316,9 @@ class TranscriberEngine:
                         + "*" * (len(huggingface_token) - 8)
                         + huggingface_token[-4:]
                     )
-                    print(f"[SECURITY INFO] Token de Hugging Face configurado: {masked_token}")
+                    print(
+                        f"[SECURITY INFO] Token de Hugging Face configurado: {masked_token}"
+                    )
                     print("Cargando pipeline de diarización de pyannote.audio...")
 
                     try:
@@ -342,9 +344,7 @@ class TranscriberEngine:
                             error_msg = f"Error al cargar el pipeline de diarización: {error_str}"
 
                         print(f"[ERROR] {error_msg}")
-                        self.diarization_pipeline = (
-                            "error"  # Marcar como error para evitar reintentos constantes
-                        )
+                        self.diarization_pipeline = "error"  # Marcar como error para evitar reintentos constantes
                         raise RuntimeError(error_msg)  # Propagar error
         if self.diarization_pipeline == "error":  # Verificar si la carga anterior falló
             raise RuntimeError(
@@ -352,7 +352,9 @@ class TranscriberEngine:
             )  # Lanzar error si falló
         return self.diarization_pipeline  # Retornar la instancia cargada
 
-    def align_transcription_with_diarization(self, whisper_segments, diarization_annotation):
+    def align_transcription_with_diarization(
+        self, whisper_segments, diarization_annotation
+    ):
         """
         Alinea los segmentos de transcripción de faster-whisper con la anotación de diarización de pyannote.audio.
 
@@ -416,7 +418,10 @@ class TranscriberEngine:
                         best_overlap_speaker = speaker_label
 
                 # Si se encontró un hablante y es diferente al actual, añadir etiqueta
-                if best_overlap_speaker is not None and best_overlap_speaker != current_speaker:
+                if (
+                    best_overlap_speaker is not None
+                    and best_overlap_speaker != current_speaker
+                ):
                     # Añadir nueva línea solo si no es el principio del texto
                     if formatted_text:
                         formatted_text += "\n"
@@ -424,11 +429,15 @@ class TranscriberEngine:
                     current_speaker = best_overlap_speaker
 
                 # Añadir la palabra al texto formateado
-                formatted_text += word_text + " "  # Añadir espacio después de la palabra
+                formatted_text += (
+                    word_text + " "
+                )  # Añadir espacio después de la palabra
 
         return formatted_text.strip()  # Eliminar espacio final
 
-    def _preprocess_audio_for_diarization(self, input_filepath: str, output_filepath: str):
+    def _preprocess_audio_for_diarization(
+        self, input_filepath: str, output_filepath: str
+    ):
         return self.audio_handler.preprocess_audio(input_filepath, output_filepath)
 
     def pause_transcription(self):
@@ -524,7 +533,9 @@ class TranscriberEngine:
                         {"type": "progress", "data": "Pipeline de diarización cargado."}
                     )  # Mensaje de progreso
                 except RuntimeError as e:
-                    result_queue.put({"type": "error", "data": str(e)})  # Enviar error a la GUI
+                    result_queue.put(
+                        {"type": "error", "data": str(e)}
+                    )  # Enviar error a la GUI
                     return  # Salir si falla la carga
 
             result_queue.put({"type": "progress", "data": "Iniciando transcripción..."})
@@ -557,6 +568,7 @@ class TranscriberEngine:
         chunk_duration: int = 30,
         live_transcription: bool = False,
         parallel_processing: bool = False,
+        initial_prompt: Optional[str] = None,
     ) -> str:
         """
         Procesa archivos grandes en chunks enviando resultados progresivamente.
@@ -579,7 +591,9 @@ class TranscriberEngine:
                         "data": f"Procesando audio ({total_duration / 60:.1f} min) en modo {mode_desc}...",
                     }
                 )
-                transcription_queue.put({"type": "total_duration", "data": total_duration})
+                transcription_queue.put(
+                    {"type": "total_duration", "data": total_duration}
+                )
 
             num_chunks = int(total_duration // chunk_duration) + 1
             chunk_infos = []
@@ -627,10 +641,13 @@ class TranscriberEngine:
 
             if parallel_processing:
                 max_workers = min(self._max_workers, num_chunks, 4)
-                print(f"[INFO] Iniciando procesamiento paralelo con {max_workers} workers.")
+                print(
+                    f"[INFO] Iniciando procesamiento paralelo con {max_workers} workers."
+                )
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     future_to_chunk = {
-                        executor.submit(process_segment, info): info for info in chunk_infos
+                        executor.submit(process_segment, info): info
+                        for info in chunk_infos
                     }
 
                     for future in as_completed(future_to_chunk):
@@ -649,10 +666,10 @@ class TranscriberEngine:
                                 transcription_queue.put(
                                     {
                                         "type": "new_segment",
-                                        "text": text + " ",
+                                        "text": (text or "") + " ",
                                         "idx": idx,
                                         "start": info["start_time"],
-                                        "end": info["start_time"] + info["duration"]
+                                        "end": info["start_time"] + info["duration"],
                                     }
                                 )
 
@@ -668,7 +685,9 @@ class TranscriberEngine:
                                         "percentage": progress,
                                         "current_time": total_done * chunk_duration,
                                         "total_duration": total_duration,
-                                        "estimated_remaining_time": (num_chunks - total_done)
+                                        "estimated_remaining_time": (
+                                            num_chunks - total_done
+                                        )
                                         * (elapsed / max(total_done, 1)),
                                         "processing_rate": total_done / max(elapsed, 1),
                                         "parallel_workers": max_workers,
@@ -696,10 +715,10 @@ class TranscriberEngine:
                             transcription_queue.put(
                                 {
                                     "type": "new_segment",
-                                    "text": text + " ",
+                                    "text": (text or "") + " ",
                                     "idx": idx,
                                     "start": info["start_time"],
-                                    "end": info["start_time"] + info["duration"]
+                                    "end": info["start_time"] + info["duration"],
                                 }
                             )
 
@@ -714,7 +733,9 @@ class TranscriberEngine:
                                     "percentage": progress,
                                     "current_time": total_done * chunk_duration,
                                     "total_duration": total_duration,
-                                    "estimated_remaining_time": (num_chunks - total_done)
+                                    "estimated_remaining_time": (
+                                        num_chunks - total_done
+                                    )
                                     * (elapsed / max(total_done, 1)),
                                     "processing_rate": total_done / max(elapsed, 1),
                                     "parallel_workers": 1,
@@ -726,7 +747,9 @@ class TranscriberEngine:
 
             if self._cancel_event.is_set():
                 if transcription_queue:
-                    transcription_queue.put({"type": "error", "data": "Transcripción cancelada."})
+                    transcription_queue.put(
+                        {"type": "error", "data": "Transcripción cancelada."}
+                    )
                 return ""
 
             # Combinar resultados ordenados
@@ -815,7 +838,9 @@ class TranscriberEngine:
                 initial_prompt=initial_prompt,
             )
 
-            chunk_text = " ".join([segment.text.strip() for segment in segments_generator])
+            chunk_text = " ".join(
+                [segment.text.strip() for segment in segments_generator]
+            )
             return chunk_text, None
 
         except Exception as e:
@@ -879,11 +904,14 @@ class TranscriberEngine:
         initial_prompt = self.dictionary_manager.get_initial_prompt()
         if study_mode:
             initial_prompt = "This is a physiotherapy lecture involving code-switching between Spanish and English. The transcription should transcribe both languages accurately."
-            print(f"[INFO] Modo Estudio activado: Usando prompt mixto: '{initial_prompt}'")
-
+            print(
+                f"[INFO] Modo Estudio activado: Usando prompt mixto: '{initial_prompt}'"
+            )
 
         # --- SIMPLIFICACIÓN DE LA GESTIÓN DE ARCHIVOS ---
-        path_to_use_for_processing = audio_filepath  # Ruta del archivo que se usará para todo
+        path_to_use_for_processing = (
+            audio_filepath  # Ruta del archivo que se usará para todo
+        )
         is_temp_file_to_delete = False  # Bandera para saber si hay que borrarlo
 
         try:
@@ -914,7 +942,9 @@ class TranscriberEngine:
                     self._preprocess_audio_for_diarization(
                         audio_filepath, temp_wav_path
                     )  # Convierte el original al temporal
-                    path_to_use_for_processing = temp_wav_path  # Actualizar la ruta a usar
+                    path_to_use_for_processing = (
+                        temp_wav_path  # Actualizar la ruta a usar
+                    )
                     is_temp_file_to_delete = True  # Marcar para borrar
                     print(
                         f"[DEBUG] Usando WAV temporal para procesamiento: {path_to_use_for_processing}"
@@ -926,10 +956,14 @@ class TranscriberEngine:
                             "data": f"Fallo en preprocesamiento a WAV: {e_preprocess}. Intentando sin diarización.",
                         }
                     )
-                    perform_diarization = False  # Desactivar diarización si el preproc falla
+                    perform_diarization = (
+                        False  # Desactivar diarización si el preproc falla
+                    )
                     # No es necesario cambiar path_to_use_for_processing, ya es el original.
                     # Borrar el archivo temporal fallido si se creó
-                    if os.path.exists(temp_wav_path):  # Check if temp_wav_path was defined
+                    if os.path.exists(
+                        temp_wav_path
+                    ):  # Check if temp_wav_path was defined
                         try:
                             os.remove(temp_wav_path)
                             print(
@@ -939,7 +973,9 @@ class TranscriberEngine:
                             print(
                                 f"[ERROR] No se pudo eliminar el archivo WAV temporal fallido {temp_wav_path}: {e_remove_fail}"
                             )
-                    is_temp_file_to_delete = False  # No hay archivo temporal exitoso que borrar
+                    is_temp_file_to_delete = (
+                        False  # No hay archivo temporal exitoso que borrar
+                    )
 
             # Si no se hizo diarización, o si era WAV originalmente, o si falló el preproc,
             # path_to_use_for_processing sigue siendo el audio_filepath original.
@@ -950,9 +986,6 @@ class TranscriberEngine:
             )
 
             effective_language = None if language == "auto" else language
-
-            effective_language = None if language == "auto" else language
-            initial_prompt = self.dictionary_manager.get_initial_prompt()
 
             transcription_queue.put(
                 {"type": "status_update", "data": "Obteniendo información del audio..."}
@@ -969,7 +1002,9 @@ class TranscriberEngine:
 
             total_duration = info.duration
             transcription_queue.put({"type": "total_duration", "data": total_duration})
-            transcription_queue.put({"type": "status_update", "data": "Iniciando transcripción..."})
+            transcription_queue.put(
+                {"type": "status_update", "data": "Iniciando transcripción..."}
+            )
 
             start_real_time = time.time()
             processed_audio_duration_so_far = 0.0
@@ -1021,12 +1056,13 @@ class TranscriberEngine:
                     )
                     # Ajustar el tiempo de inicio real para tener en cuenta el tiempo pausado.
                     try:
-                        has_rate = hasattr(current_processing_rate, "__float__") or isinstance(
-                            current_processing_rate, (int, float)
-                        )
+                        has_rate = hasattr(
+                            current_processing_rate, "__float__"
+                        ) or isinstance(current_processing_rate, (int, float))
                         if has_rate and float(current_processing_rate) > 0:
                             start_real_time = time.time() - (
-                                processed_audio_duration_so_far / float(current_processing_rate)
+                                processed_audio_duration_so_far
+                                / float(current_processing_rate)
                             )
                         else:
                             start_real_time = time.time()
@@ -1038,7 +1074,10 @@ class TranscriberEngine:
                 elapsed_real_time = time.time() - start_real_time
                 # current_processing_rate inicializado antes del bucle
                 try:
-                    if isinstance(elapsed_real_time, (int, float)) and elapsed_real_time > 0:
+                    if (
+                        isinstance(elapsed_real_time, (int, float))
+                        and elapsed_real_time > 0
+                    ):
                         current_processing_rate = (
                             processed_audio_duration_so_far / elapsed_real_time
                         )
@@ -1046,11 +1085,13 @@ class TranscriberEngine:
                     pass
                 estimated_remaining_time = -1
                 try:
-                    has_rate = hasattr(current_processing_rate, "__float__") or isinstance(
-                        current_processing_rate, (int, float)
-                    )
+                    has_rate = hasattr(
+                        current_processing_rate, "__float__"
+                    ) or isinstance(current_processing_rate, (int, float))
                     if has_rate and float(current_processing_rate) > 0:
-                        remaining_audio_duration = total_duration - processed_audio_duration_so_far
+                        remaining_audio_duration = (
+                            total_duration - processed_audio_duration_so_far
+                        )
                         estimated_remaining_time = remaining_audio_duration / float(
                             current_processing_rate
                         )
@@ -1068,16 +1109,22 @@ class TranscriberEngine:
                     "estimated_remaining_time": estimated_remaining_time,
                     "processing_rate": current_processing_rate,
                 }
-                transcription_queue.put({"type": "progress_update", "data": progress_data})
+                transcription_queue.put(
+                    {"type": "progress_update", "data": progress_data}
+                )
                 # --- Fin Lógica de Progreso ---
 
-                if not perform_diarization:  # Solo enviar para vivo si NO hay diarización aquí
-                    transcription_queue.put({
-                        "type": "new_segment",
-                        "text": segment.text.strip(),
-                        "start": segment.start,
-                        "end": segment.end
-                    })
+                if (
+                    not perform_diarization
+                ):  # Solo enviar para vivo si NO hay diarización aquí
+                    transcription_queue.put(
+                        {
+                            "type": "new_segment",
+                            "text": segment.text.strip(),
+                            "start": segment.start,
+                            "end": segment.end,
+                        }
+                    )
 
             final_transcribed_text = ""
             if perform_diarization:  # Volver a chequear por si se desactivó
@@ -1087,23 +1134,26 @@ class TranscriberEngine:
                 try:
                     diarization_pipeline = self._load_diarization_pipeline()
                     if diarization_pipeline is None or diarization_pipeline == "error":
-                        error_msg_load_diar = "Fallo crítico al cargar pipeline de diarización."
+                        error_msg_load_diar = (
+                            "Fallo crítico al cargar pipeline de diarización."
+                        )
                         print(f"[ERROR_DIARIZATION] {error_msg_load_diar}")
                         transcription_queue.put(
                             {
                                 "type": "error",
-                                "data": error_msg_load_diar + " Transcribiendo sin diarización.",
+                                "data": error_msg_load_diar
+                                + " Transcribiendo sin diarización.",
                             }
                         )
                         final_transcribed_text = " ".join(
                             [s.text.strip() for s in all_segments]
                         )  # Fallback
                         # No continuar con la diarización si el pipeline no se cargó
-                        perform_diarization = False  # Asegurar que no se intente más adelante
+                        perform_diarization = (
+                            False  # Asegurar que no se intente más adelante
+                        )
 
-                    if (
-                        perform_diarization
-                    ):  # Solo proceder si el pipeline se cargó y la diarización sigue activa
+                    if perform_diarization:  # Solo proceder si el pipeline se cargó y la diarización sigue activa
                         print(
                             f"[DEBUG] Ejecutando diarización en el archivo: {path_to_use_for_processing}"
                         )
@@ -1117,21 +1167,32 @@ class TranscriberEngine:
                             progress_info_parts_local = []
                             if step_name:
                                 progress_info_parts_local.append(f"Step: {step_name}")
-                            if current_step_local is not None and total_steps_local is not None:
+                            if (
+                                current_step_local is not None
+                                and total_steps_local is not None
+                            ):
                                 progress_info_parts_local.append(
                                     f"({current_step_local}/{total_steps_local})"
                                 )
-                            elif completed_local is not None and total_local is not None:
+                            elif (
+                                completed_local is not None and total_local is not None
+                            ):
                                 progress_info_parts_local.append(
                                     f"({completed_local}/{total_local})"
                                 )
                             if not progress_info_parts_local and kwargs:
                                 progress_info_parts_local.append(f"kwargs: {kwargs}")
-                            elif not progress_info_parts_local and not kwargs and not step_name:
+                            elif (
+                                not progress_info_parts_local
+                                and not kwargs
+                                and not step_name
+                            ):
                                 progress_info_parts_local.append(
                                     "Hook called with no specific step info"
                                 )
-                            print(f"[PYANNOTE HOOK] {' '.join(progress_info_parts_local)}")
+                            print(
+                                f"[PYANNOTE HOOK] {' '.join(progress_info_parts_local)}"
+                            )
 
                         diarization_annotation = diarization_pipeline(
                             path_to_use_for_processing, hook=hook
@@ -1149,32 +1210,48 @@ class TranscriberEngine:
                             final_transcribed_text = " ".join(
                                 [s.text.strip() for s in all_segments]
                             )  # Fallback
-                            perform_diarization = False  # Asegurar que no se intente más adelante
+                            perform_diarization = (
+                                False  # Asegurar que no se intente más adelante
+                            )
 
-                        if perform_diarization:  # Solo alinear si la anotación fue exitosa
-                            print("[DEBUG] Alineando resultados de transcripción y diarización.")
-                            final_transcribed_text = self.align_transcription_with_diarization(
-                                all_segments, diarization_annotation
+                        if (
+                            perform_diarization
+                        ):  # Solo alinear si la anotación fue exitosa
+                            print(
+                                "[DEBUG] Alineando resultados de transcripción y diarización."
+                            )
+                            final_transcribed_text = (
+                                self.align_transcription_with_diarization(
+                                    all_segments, diarization_annotation
+                                )
                             )
 
                     # Si la diarización se desactivó en algún punto dentro de este bloque try
                     if not perform_diarization and not final_transcribed_text:
-                        final_transcribed_text = " ".join([s.text.strip() for s in all_segments])
+                        final_transcribed_text = " ".join(
+                            [s.text.strip() for s in all_segments]
+                        )
 
                 except RuntimeError as e_diar:
                     error_msg = f"Fallo en diarización: {e_diar}. Transcribiendo sin diarización."
                     print(f"[ERROR_DIARIZATION] {error_msg}")
                     transcription_queue.put({"type": "error", "data": error_msg})
-                    final_transcribed_text = " ".join([s.text.strip() for s in all_segments])
+                    final_transcribed_text = " ".join(
+                        [s.text.strip() for s in all_segments]
+                    )
                 except Exception as e_diar_generic:
                     error_msg = f"Error inesperado en diarización: {e_diar_generic}. Transcribiendo sin diarización."
                     print(f"[ERROR_DIARIZATION] {error_msg}")
                     transcription_queue.put({"type": "error", "data": error_msg})
-                    final_transcribed_text = " ".join([s.text.strip() for s in all_segments])
+                    final_transcribed_text = " ".join(
+                        [s.text.strip() for s in all_segments]
+                    )
 
             # Asegurar que final_transcribed_text tenga un valor si no se hizo diarización o falló
             if not final_transcribed_text:
-                final_transcribed_text = " ".join([s.text.strip() for s in all_segments])
+                final_transcribed_text = " ".join(
+                    [s.text.strip() for s in all_segments]
+                )
 
             end_time_transcription = time.time()
             transcription_duration = end_time_transcription - start_time_transcription
@@ -1183,7 +1260,9 @@ class TranscriberEngine:
             # (Podemos guardarlo al inicio de la transcripción para compararlo al final)
 
             print("Transcripción completa (en _perform_transcription).")
-            transcription_queue.put({"type": "status_update", "data": "Procesamiento completado."})
+            transcription_queue.put(
+                {"type": "status_update", "data": "Procesamiento completado."}
+            )
 
             finish_data = {
                 "final_text": final_transcribed_text,
@@ -1222,7 +1301,9 @@ class TranscriberEngine:
                     )
                     try:
                         os.remove(path_to_use_for_processing)
-                        print(f"[DEBUG] Archivo temporal {path_to_use_for_processing} eliminado.")
+                        print(
+                            f"[DEBUG] Archivo temporal {path_to_use_for_processing} eliminado."
+                        )
                     except Exception as e_remove:
                         print(
                             f"[ERROR] No se pudo eliminar el archivo temporal {path_to_use_for_processing}: {e_remove}"
@@ -1275,7 +1356,7 @@ class TranscriberEngine:
         # 1. Descargar el audio
         # self.reset_cancellation_flags() # Asegúrate de que las banderas de cancelación estén limpias - ESTO DEBE ESTAR EN LA GUI
         self._cancel_event.clear()  # Limpiar evento de cancelación de transcripción
-        self.cancel_event.clear()  # Limpiar evento de cancelación de yt-dlp
+        # Nota: Ya no tenemos cancel_event separado, usamos solo _cancel_event
         self._paused = False  # Asegurarse de que no esté marcado como pausado al inicio
         self._pause_event.set()  # Asegurarse de que el evento de pausa esté activado al inicio
 
@@ -1290,7 +1371,7 @@ class TranscriberEngine:
         )
 
         if (
-            audio_filepath and not self.cancel_event.is_set()
+            audio_filepath and not self._cancel_event.is_set()
         ):  # Verificar cancelación después de descarga
             self.current_audio_filepath = audio_filepath  # Guardar para posible borrado
 
@@ -1358,14 +1439,16 @@ class TranscriberEngine:
             #         print(f"[ERROR] No se pudo eliminar el archivo temporal {audio_filepath}: {e}")
             self.current_audio_filepath = None  # Limpiar después de procesar o fallar
 
-        elif self.cancel_event.is_set():
+        elif self._cancel_event.is_set():
             self.gui_queue.put(
                 {
                     "type": "status_update",
                     "data": "Descarga/Transcripción de video cancelada.",
                 }
             )  # Usar status_update
-            if audio_filepath and os.path.exists(audio_filepath):  # Limpiar si se descargó algo
+            if audio_filepath and os.path.exists(
+                audio_filepath
+            ):  # Limpiar si se descargó algo
                 try:
                     os.remove(audio_filepath)
                 except Exception:
@@ -1390,18 +1473,18 @@ class TranscriberEngine:
     ):
         """
         Transcribe audio stream from MicrophoneRecorder in real-time using a Producer-Consumer pattern.
-        
+
         Architecture:
         - Producer Thread (VAD): Continuously reads audio, detects voice/silence, and segments it.
         - Consumer (Main Thread): Takes complete segments and transcribes them with Whisper.
-        
+
         This prevents the "spiraling latency" where transcription time > audio duration causes buffer growth.
         """
         import numpy as np
         import wave
-        
+
         logger.info("Iniciando transcripción en vivo optimizada (Producer-Consumer)...")
-        
+
         model = self._load_model(selected_model_size)
         if not model:
             return
@@ -1415,20 +1498,20 @@ class TranscriberEngine:
         vad_model = None
         try:
             from faster_whisper.vad import get_vad_model
+
             vad_model = get_vad_model()
             logger.info("[VAD] Modelo Silero VAD cargado correctamente")
         except Exception as e:
-            logger.error(f"[VAD] Error cargando VAD: {e}. Usando segmentación por tiempo.")
+            logger.error(
+                f"[VAD] Error cargando VAD: {e}. Usando segmentación por tiempo."
+            )
 
         # Colas y Eventos
         processing_queue = queue.Queue()
         stop_event = threading.Event()
-        
+
         # Estado compartido
-        context_state = {
-            "confirmed_text": "",
-            "last_segment_text": ""
-        }
+        context_state = {"confirmed_text": "", "last_segment_text": ""}
 
         def vad_producer():
             """
@@ -1436,20 +1519,20 @@ class TranscriberEngine:
             ¡Nunca debe bloquearse por operaciones lentas!
             """
             logger.info("[PRODUCER] Iniciando hilo de análisis de audio...")
-            
+
             # Configuración VAD
-            SILENCE_THRESHOLD_MS = 700    # Silencio para cortar frase
-            SPEECH_THRESHOLD = 0.4        # Probabilidad de voz
-            MAX_SEGMENT_SECONDS = 15.0    # Máximo forzoso
-            MIN_SEGMENT_SECONDS = 1.0     # Mínimo para transcribir
-            VAD_CHUNK_SIZE = 512          # 32ms @ 16kHz
-            
+            SILENCE_THRESHOLD_MS = 800  # Silencio para cortar frase
+            SPEECH_THRESHOLD = 0.5  # Probabilidad de voz (Aumentado para reducir ruido)
+            MAX_SEGMENT_SECONDS = 15.0  # Máximo forzoso
+            MIN_SEGMENT_SECONDS = 1.0  # Mínimo para transcribir
+            VAD_CHUNK_SIZE = 512  # 32ms @ 16kHz
+
             audio_buffer = bytearray()
             vad_buffer = np.array([], dtype=np.float32)
             silence_samples = 0
             is_speaking = False
             last_speech_time = time.time()
-            
+
             while not stop_event.is_set() and recorder.is_recording():
                 if recorder.is_paused():
                     time.sleep(0.1)
@@ -1459,19 +1542,22 @@ class TranscriberEngine:
                     # Lectura no bloqueante o con timeout corto
                     chunk = recorder.chunk_queue.get(timeout=0.1)
                     audio_buffer.extend(chunk)
-                    
+
                     # VAD necesita float32
-                    chunk_np = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+                    chunk_np = (
+                        np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
+                        / 32768.0
+                    )
                     vad_buffer = np.concatenate([vad_buffer, chunk_np])
-                    
+
                 except queue.Empty:
                     continue
-                
+
                 # Procesar VAD en ventanas
                 while len(vad_buffer) >= VAD_CHUNK_SIZE:
                     vad_window = vad_buffer[:VAD_CHUNK_SIZE]
                     vad_buffer = vad_buffer[VAD_CHUNK_SIZE:]
-                    
+
                     if vad_model:
                         try:
                             speech_prob = vad_model(vad_window, 16000).item()
@@ -1482,7 +1568,7 @@ class TranscriberEngine:
                             else:
                                 silence_samples += VAD_CHUNK_SIZE
                         except Exception:
-                            pass # Ignorar errores puntuales de VAD
+                            pass  # Ignorar errores puntuales de VAD
                     else:
                         # Fallback sin VAD: asumir siempre hablando hasta max time
                         is_speaking = True
@@ -1490,32 +1576,36 @@ class TranscriberEngine:
 
                 # Lógica de Segmentación
                 silence_ms = (silence_samples / 16000) * 1000
-                buffer_duration = len(audio_buffer) / 32000.0 # 16kHz * 2 bytes
-                
+                buffer_duration = len(audio_buffer) / 32000.0  # 16kHz * 2 bytes
+
                 should_cut = False
                 cut_reason = ""
-                
+
                 # 1. Corte por silencio natural después de hablar
                 if is_speaking and silence_ms >= SILENCE_THRESHOLD_MS:
                     if buffer_duration >= MIN_SEGMENT_SECONDS:
                         should_cut = True
                         cut_reason = "silence"
-                
+
                 # 2. Corte por duración máxima (evitar OOM o lag extremo)
                 elif buffer_duration >= MAX_SEGMENT_SECONDS:
                     should_cut = True
                     cut_reason = "max_duration"
-                
+
                 if should_cut:
                     # Enviar copia del buffer para procesar
                     segment_audio = bytes(audio_buffer)
-                    processing_queue.put({
-                        "audio": segment_audio,
-                        "duration": buffer_duration,
-                        "reason": cut_reason
-                    })
-                    logger.info(f"[PRODUCER] Segmento emitido: {buffer_duration:.1f}s ({cut_reason})")
-                    
+                    processing_queue.put(
+                        {
+                            "audio": segment_audio,
+                            "duration": buffer_duration,
+                            "reason": cut_reason,
+                        }
+                    )
+                    logger.info(
+                        f"[PRODUCER] Segmento emitido: {buffer_duration:.1f}s ({cut_reason})"
+                    )
+
                     # Resetear estado
                     audio_buffer = bytearray()
                     silence_samples = 0
@@ -1534,29 +1624,33 @@ class TranscriberEngine:
                 # Verificar si el recorder sigue vivo
                 if not recorder.is_recording():
                     break
-                    
+
                 try:
                     # Esperar segmento del productor
                     task = processing_queue.get(timeout=0.5)
                     audio_data = task["audio"]
-                    
+
                     # Preparar Prompt con Contexto
                     current_prompt = base_prompt
                     if context_state["confirmed_text"]:
                         # Tomar últimas ~200 chars o últimas palabras
                         ctx = context_state["confirmed_text"][-200:].strip()
                         if ctx:
-                            current_prompt = ctx # Whisper usa el prompt como "contexto previo"
-                    
+                            current_prompt = (
+                                ctx  # Whisper usa el prompt como "contexto previo"
+                            )
+
                     # Guardar a WAV temporal
-                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                        with wave.open(tmp.name, 'wb') as wf:
+                    with tempfile.NamedTemporaryFile(
+                        suffix=".wav", delete=False
+                    ) as tmp:
+                        with wave.open(tmp.name, "wb") as wf:
                             wf.setnchannels(1)
                             wf.setsampwidth(2)
                             wf.setframerate(16000)
                             wf.writeframes(audio_data)
                         tmp_path = tmp.name
-                    
+
                     # Inferencia Whisper
                     try:
                         start_inf = time.time()
@@ -1567,49 +1661,66 @@ class TranscriberEngine:
                             tmp_path,
                             language=effective_language,
                             beam_size=beam_size if not study_mode else 1,
-                            vad_filter=False, 
+                            vad_filter=False,
                             initial_prompt=current_prompt,
-                            condition_on_previous_text=False, 
+                            condition_on_previous_text=False,
                             temperature=0.0,
-                            repetition_penalty=1.05
+                            compression_ratio_threshold=2.4,
+                            log_prob_threshold=-1.0,
+                            no_speech_threshold=0.6,
+                            repetition_penalty=1.1,
                         )
-                        
+
                         text_segments = [s.text.strip() for s in segments_gen]
                         full_text = " ".join([t for t in text_segments if t])
-                        
+
                         inf_time = time.time() - start_inf
-                        logger.info(f"[CONSUMER] Inferencia: {inf_time:.2f}s | Texto: {full_text[:50]}...")
-                        
+                        logger.info(
+                            f"[CONSUMER] Inferencia: {inf_time:.2f}s | Texto: {full_text[:50]}..."
+                        )
+
                         if full_text:
                             # 1. Filter common hallucinations
-                            if full_text.lower().strip() in ["subtítulos realizados por", "suscríbete", "gracias por ver"]:
-                                continue
-                            
-                            # 2. Filter loop repetitions (text identical to last segment)
-                            # If audio was silent but VAD triggered (rare), model might just repeat the prompt content.
-                            if context_state["last_segment_text"] and full_text.strip() == context_state["last_segment_text"].strip():
-                                logger.warning(f"[CONSUMER] Repetición detectada y filtrada: '{full_text[:30]}...'")
+                            if full_text.lower().strip() in [
+                                "subtítulos realizados por",
+                                "suscríbete",
+                                "gracias por ver",
+                            ]:
                                 continue
 
-                            transcription_queue.put({
-                                "type": "new_segment",
-                                "text": full_text + " ",
-                                "is_final": True
-                            })
+                            # 2. Filter loop repetitions (text identical to last segment)
+                            # If audio was silent but VAD triggered (rare), model might just repeat the prompt content.
+                            if (
+                                context_state["last_segment_text"]
+                                and full_text.strip()
+                                == context_state["last_segment_text"].strip()
+                            ):
+                                logger.warning(
+                                    f"[CONSUMER] Repetición detectada y filtrada: '{full_text[:30]}...'"
+                                )
+                                continue
+
+                            transcription_queue.put(
+                                {
+                                    "type": "new_segment",
+                                    "text": full_text + " ",
+                                    "is_final": True,
+                                }
+                            )
                             context_state["confirmed_text"] += " " + full_text
                             context_state["last_segment_text"] = full_text
-                    
+
                     except Exception as e:
                         logger.error(f"[CONSUMER] Error inferencia: {e}")
                     finally:
                         if os.path.exists(tmp_path):
                             os.remove(tmp_path)
-                            
+
                 except queue.Empty:
                     continue
                 except Exception as e:
                     logger.error(f"[CONSUMER] Error loop: {e}")
-                    
+
         except Exception as e:
             logger.error(f"Error fatal en transcribe_mic_stream: {e}")
             transcription_queue.put({"type": "error", "data": str(e)})

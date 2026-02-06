@@ -43,13 +43,23 @@ class AudioDevice:
 
 
 class MicrophoneRecorder:
-    """Graba audio desde el micrófono del sistema."""
+    """
+    Graba audio desde el micrófono del sistema.
+
+    Thread Safety:
+    - Uses internal locks for thread-safe operations
+    - Callbacks are queued for safe GUI updates
+    - Supports context manager pattern for automatic cleanup
+    """
 
     # Configuración óptima para Whisper
     SAMPLE_RATE = 16000  # 16 kHz
     CHANNELS = 1  # Mono
     CHUNK_SIZE = 1024  # Frames por buffer
     FORMAT = "paInt16" if PYAUDIO_AVAILABLE else None  # 16-bit audio
+
+    # Maximum duration for recording (safety limit)
+    MAX_RECORDING_DURATION = 3600  # 1 hour
 
     def __init__(
         self,
@@ -62,14 +72,22 @@ class MicrophoneRecorder:
         Args:
             gui_queue: Cola para enviar mensajes a la GUI.
             on_duration_update: Callback para actualizar la duración en la UI.
+                               This callback will be called from a background thread,
+                               so it should be thread-safe or use proper synchronization.
         """
         self.gui_queue = gui_queue
         self.on_duration_update = on_duration_update
-        self.chunk_queue = queue.Queue() # Nueva cola para fragmentos de audio en vivo
+        self.chunk_queue = queue.Queue(
+            maxsize=1000
+        )  # Limit queue size to prevent memory issues
+        self._duration_callback_queue: queue.Queue = queue.Queue()
 
         self._pyaudio: Optional["pyaudio.PyAudio"] = None
         self._stream = None
         self._frames: List[bytes] = []
+        self._frames_byte_count: int = (
+            0  # Track actual byte count for accurate duration
+        )
         self._recording = False
         self._paused = False
         self._recording_thread: Optional[threading.Thread] = None
@@ -79,6 +97,16 @@ class MicrophoneRecorder:
         self._total_pause_duration: float = 0.0
         self._device_index: Optional[int] = None
         self._lock = threading.Lock()
+        self._cleanup_done = False
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - ensures proper cleanup."""
+        self._cleanup()
+        return False
 
     def is_available(self) -> bool:
         """Verifica si la grabación de micrófono está disponible."""
@@ -151,9 +179,7 @@ class MicrophoneRecorder:
         """
         self._device_index = device_index
 
-    def start_recording(
-        self, output_filepath: Optional[str] = None
-    ) -> str:
+    def start_recording(self, output_filepath: Optional[str] = None) -> str:
         """
         Inicia la grabación de audio desde el micrófono.
 
@@ -182,7 +208,7 @@ class MicrophoneRecorder:
         self._output_filepath = output_filepath
         self._frames = []
         self._total_pause_duration = 0.0
-        
+
         # Limpiar cola de fragmentos previos
         while not self.chunk_queue.empty():
             try:
@@ -242,14 +268,23 @@ class MicrophoneRecorder:
                     )
                     with self._lock:
                         self._frames.append(data)
-                    
-                    # Enviar a la cola para transcripción en vivo
-                    self.chunk_queue.put(data)
+                        self._frames_byte_count += len(data)
 
-                    # Actualizar duración
+                    # Enviar a la cola para transcripción en vivo (non-blocking)
+                    try:
+                        self.chunk_queue.put_nowait(data)
+                    except queue.Full:
+                        # Queue is full, remove oldest item and add new one
+                        try:
+                            self.chunk_queue.get_nowait()
+                            self.chunk_queue.put_nowait(data)
+                        except queue.Empty:
+                            pass
+
+                    # Queue duration update for thread-safe callback
                     if self.on_duration_update:
                         duration = self.get_duration()
-                        self.on_duration_update(duration)
+                        self._duration_callback_queue.put(duration)
 
                 except Exception as e:
                     logger.error(f"Error en bucle de grabación: {e}")
@@ -378,16 +413,20 @@ class MicrophoneRecorder:
         """
         Obtiene la duración actual de la grabación.
 
+        Calcula la duración real basada en el conteo de bytes, no en el número
+        de chunks, para mayor precisión.
+
         Returns:
             Duración en segundos.
         """
         if not self._recording and not self._frames:
             return 0.0
 
-        # Calcular duración basándose en los frames grabados
+        # Calcular duración basándose en el conteo real de bytes
+        # 16-bit mono = 2 bytes por sample
         with self._lock:
-            num_frames = len(self._frames) * self.CHUNK_SIZE
-            duration = num_frames / self.SAMPLE_RATE
+            num_samples = self._frames_byte_count / 2  # 2 bytes per sample (16-bit)
+            duration = num_samples / self.SAMPLE_RATE
             return duration
 
     def is_recording(self) -> bool:
@@ -398,7 +437,40 @@ class MicrophoneRecorder:
         """Indica si la grabación está pausada."""
         return self._paused
 
+    def _cleanup(self) -> None:
+        """
+        Limpieza completa del grabador.
+
+        Este método asegura que todos los recursos se liberen correctamente.
+        Puede ser llamado múltiples veces sin problemas.
+        """
+        if self._cleanup_done:
+            return
+
+        self._cleanup_done = True
+
+        try:
+            self.cancel_recording()
+        except Exception as e:
+            logger.warning(f"Error during recording cleanup: {e}")
+
+        try:
+            self._terminate_pyaudio()
+        except Exception as e:
+            logger.warning(f"Error during PyAudio cleanup: {e}")
+
+        # Clear the chunk queue
+        while not self.chunk_queue.empty():
+            try:
+                self.chunk_queue.get_nowait()
+            except queue.Empty:
+                break
+
     def __del__(self):
-        """Limpieza al destruir el objeto."""
-        self.cancel_recording()
-        self._terminate_pyaudio()
+        """
+        Limpieza al destruir el objeto.
+
+        Note: __del__ is not guaranteed to be called. Use context manager
+        pattern (with statement) for reliable cleanup.
+        """
+        self._cleanup()

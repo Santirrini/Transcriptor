@@ -41,6 +41,9 @@ class Tabs(BaseComponent):
         test_ai_callback,
         **kwargs,
     ):
+        self.restart_callback = kwargs.pop("restart_callback", None)
+        self.save_new_callback = kwargs.pop("save_new_callback", None)
+
         super().__init__(parent, theme_manager, **kwargs)
 
         # Variables
@@ -299,6 +302,8 @@ class Tabs(BaseComponent):
             self.mic_recorder,
             self.start_mic_callback,
             self.stop_mic_callback,
+            restart_callback=self.restart_callback,
+            save_new_callback=self.save_new_callback,
         )
         self.mic_frame.grid_columnconfigure(0, weight=1)
 

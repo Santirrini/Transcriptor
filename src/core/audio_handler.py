@@ -138,15 +138,16 @@ class AudioHandler:
     def _validate_path_security(self, input_path: Path, output_path: Path) -> None:
         """
         Valida que las rutas no contengan caracteres peligrosos que podrían causar
-        inyección de comandos.
+        inyección de comandos ni realicen path traversal.
 
         Args:
             input_path: Ruta de entrada a validar
             output_path: Ruta de salida a validar
 
         Raises:
-            ValueError: Si se detecta un caracter peligroso en las rutas
+            SecurityError: Si se detecta un caracter peligroso o path traversal en las rutas
         """
+        # Validar caracteres peligrosos para inyección de comandos
         dangerous_chars = [";", "|", "&", "$", "`", "||", "&&", ">", "<", "(", ")"]
         for char in dangerous_chars:
             if char in str(input_path) or char in str(output_path):
@@ -162,6 +163,54 @@ class AudioHandler:
                     },
                 )
                 raise SecurityError(error_msg, violation_type="path_injection")
+
+        # Validar path traversal - verificar que las rutas no escapen del directorio de trabajo
+        try:
+            resolved_input = input_path.resolve()
+            resolved_output = output_path.resolve()
+
+            # Directorios permitidos: directorio temporal del sistema y directorio de trabajo actual
+            import tempfile
+
+            allowed_dirs = [
+                Path(tempfile.gettempdir()).resolve(),
+                Path.cwd().resolve(),
+            ]
+
+            # Verificar que las rutas estén dentro de directorios permitidos
+            for path, path_type in [
+                (resolved_input, "input"),
+                (resolved_output, "output"),
+            ]:
+                is_allowed = False
+                for allowed_dir in allowed_dirs:
+                    try:
+                        path.relative_to(allowed_dir)
+                        is_allowed = True
+                        break
+                    except ValueError:
+                        continue
+
+                if not is_allowed:
+                    error_msg = f"Path traversal detectado en ruta de {path_type}: '{path}'. Acceso denegado."
+                    logger.security(error_msg)
+                    audit_logger.log_security_event(
+                        AuditEventType.SECURITY_VALIDATION_FAIL,
+                        "Path traversal attempt detected",
+                        {
+                            "path": str(path),
+                            "path_type": path_type,
+                            "allowed_dirs": [str(d) for d in allowed_dirs],
+                        },
+                    )
+                    raise SecurityError(error_msg, violation_type="path_traversal")
+
+        except SecurityError:
+            raise
+        except Exception as e:
+            error_msg = f"Error validando seguridad de rutas: {e}"
+            logger.error(error_msg)
+            raise SecurityError(error_msg, violation_type="path_validation_error")
 
     def preprocess_audio(self, input_filepath: str, output_filepath: str):
         """

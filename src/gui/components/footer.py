@@ -12,6 +12,9 @@ class Footer(BaseComponent):
     def __init__(
         self, parent, theme_manager, start_callback, pause_callback, cancel_callback, **kwargs
     ):
+        self.restart_callback = kwargs.pop("restart_callback", None)
+        self.save_new_callback = kwargs.pop("save_new_callback", None)
+
         super().__init__(parent, theme_manager, **kwargs)
 
         self.start_callback = start_callback
@@ -44,9 +47,39 @@ class Footer(BaseComponent):
         )
         self.transcribe_button.grid(row=0, column=0, sticky="w")
 
-        # Botones de control (Pausa, Cancelar) - Inicialmente ocultos
+        # Botones de control (Pausa, Cancelar, Reiniciar, Guardar y Nuevo) - Inicialmente ocultos
         self.controls_frame = ctk.CTkFrame(inner, fg_color="transparent")
         self.controls_frame.grid(row=0, column=1, sticky="e")
+
+        # Botón Guardar y Nuevo
+        if self.save_new_callback:
+            self.save_new_button = ctk.CTkButton(
+                self.controls_frame,
+                text="💾+▶ Guardar y Nuevo",
+                font=("Segoe UI", 13, "bold"),
+                height=44,
+                width=160,
+                fg_color=self._get_color("secondary"),
+                hover_color=self._get_color("secondary_hover"),
+                text_color="white",
+                command=self.save_new_callback,
+            )
+            self.save_new_button.pack(side="left", padx=8)
+
+        # Botón Reiniciar
+        if self.restart_callback:
+            self.restart_button = ctk.CTkButton(
+                self.controls_frame,
+                text="↺ Reiniciar",
+                font=("Segoe UI", 13, "bold"),
+                height=44,
+                width=120,
+                fg_color=self._get_color("surface_elevated"),
+                hover_color=self._get_color("border_hover"),
+                text_color=self._get_color("text"),
+                command=self.restart_callback,
+            )
+            self.restart_button.pack(side="left", padx=8)
 
         self.pause_button = ctk.CTkButton(
             self.controls_frame,
@@ -99,3 +132,15 @@ class Footer(BaseComponent):
             hover_color=self._get_color("border_hover"),
             text_color=self._get_color("text"),
         )
+        if hasattr(self, "restart_button"):
+            self.restart_button.configure(
+                fg_color=self._get_color("surface_elevated"),
+                hover_color=self._get_color("border_hover"),
+                text_color=self._get_color("text"),
+            )
+        if hasattr(self, "save_new_button"):
+            self.save_new_button.configure(
+                fg_color=self._get_color("secondary"),
+                hover_color=self._get_color("secondary_hover"),
+                text_color="white", 
+            )

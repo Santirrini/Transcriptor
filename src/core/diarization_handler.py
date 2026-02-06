@@ -70,7 +70,9 @@ class DiarizationHandler:
 
         # Validar longitud del token
         if len(huggingface_token.strip()) < 10:
-            error_msg = "Token de Hugging Face inválido (demasiado corto). Verifica tu token."
+            error_msg = (
+                "Token de Hugging Face inválido (demasiado corto). Verifica tu token."
+            )
             logger.security(error_msg)
             self._pipeline_status = "error"
             raise ConfigurationError(
@@ -110,7 +112,9 @@ class DiarizationHandler:
             self._pipeline_status = "error"
             raise DiarizationError(error_msg, error_code="DIARIZATION_LOAD_ERROR")
 
-    def perform_diarization(self, audio_filepath: str, whisper_segments: List[Any]) -> str:
+    def perform_diarization(
+        self, audio_filepath: str, whisper_segments: List[Any]
+    ) -> str:
         """
         Realiza la diarización del audio y alinea con segmentos de Whisper.
 
@@ -153,6 +157,9 @@ class DiarizationHandler:
         """
         Alinea los segmentos de Whisper con la anotación de diarización.
 
+        Optimization: Uses a two-pointer approach instead of nested loops.
+        Complexity reduced from O(n*m) to O(n + m) where n = words, m = diarization turns.
+
         Args:
             whisper_segments: Segmentos de Whisper
             diarization_annotation: Anotación de pyannote
@@ -163,45 +170,88 @@ class DiarizationHandler:
         formatted_text = ""
         current_speaker = None
 
-        # Convertir a lista para acceso eficiente
-        diarization_turns = list(diarization_annotation.itertracks(yield_label=True))
+        # Convertir a lista y ordenar por tiempo de inicio
+        diarization_turns = sorted(
+            diarization_annotation.itertracks(yield_label=True),
+            key=lambda x: x[0].start,
+        )
 
+        if not diarization_turns:
+            # Fallback: return transcription without speaker labels
+            all_words = []
+            for segment in whisper_segments:
+                if segment.words:
+                    all_words.extend([w.word for w in segment.words])
+            return " ".join(all_words).strip()
+
+        # Flatten all words from all segments into a single sorted list
+        all_words = []
         for segment in whisper_segments:
-            if not segment.words:
-                continue
+            if segment.words:
+                all_words.extend(segment.words)
 
-            for word in segment.words:
-                word_start = word.start
-                word_end = word.end
-                word_text = word.word
+        if not all_words:
+            return ""
 
-                # Encontrar el hablante que más se superpone
-                best_speaker = None
-                best_overlap = 0.0
+        # Sort words by start time (they should already be sorted, but just to be safe)
+        all_words.sort(key=lambda w: w.start)
 
-                for turn, _, speaker_label in diarization_turns:
-                    overlap_start = max(word_start, turn.start)
-                    overlap_end = min(word_end, turn.end)
-                    overlap_duration = max(0.0, overlap_end - overlap_start)
+        # Two-pointer approach: track which diarization turn we're currently in
+        turn_idx = 0
 
-                    if overlap_duration > best_overlap:
-                        best_overlap = overlap_duration
-                        best_speaker = speaker_label
+        for word in all_words:
+            word_start = word.start
+            word_end = word.end
+            word_text = word.word
 
-                # Añadir etiqueta de hablante si cambió
-                if best_speaker is not None and best_speaker != current_speaker:
-                    if formatted_text:
-                        formatted_text += "\n"
-                    formatted_text += f"{best_speaker}: "
-                    current_speaker = best_speaker
+            # Advance turn pointer while current word is past the current turn
+            while (
+                turn_idx < len(diarization_turns) - 1
+                and diarization_turns[turn_idx][0].end < word_start
+            ):
+                turn_idx += 1
 
-                formatted_text += word_text + " "
+            # Check current turn and possibly the next one for overlap
+            best_speaker = None
+            best_overlap = 0.0
+
+            # Check current turn
+            turn, _, speaker_label = diarization_turns[turn_idx]
+            overlap_start = max(word_start, turn.start)
+            overlap_end = min(word_end, turn.end)
+            overlap_duration = max(0.0, overlap_end - overlap_start)
+
+            if overlap_duration > best_overlap:
+                best_overlap = overlap_duration
+                best_speaker = speaker_label
+
+            # Also check next turn (in case word spans across turn boundary)
+            if turn_idx + 1 < len(diarization_turns):
+                next_turn, _, next_speaker = diarization_turns[turn_idx + 1]
+                next_overlap_start = max(word_start, next_turn.start)
+                next_overlap_end = min(word_end, next_turn.end)
+                next_overlap_duration = max(0.0, next_overlap_end - next_overlap_start)
+
+                if next_overlap_duration > best_overlap:
+                    best_overlap = next_overlap_duration
+                    best_speaker = next_speaker
+
+            # Añadir etiqueta de hablante si cambió
+            if best_speaker is not None and best_speaker != current_speaker:
+                if formatted_text:
+                    formatted_text += "\n"
+                formatted_text += f"{best_speaker}: "
+                current_speaker = best_speaker
+
+            formatted_text += word_text + " "
 
         return formatted_text.strip()
 
     def is_loaded(self) -> bool:
         """Verifica si el pipeline está cargado."""
-        return self._pipeline_status == "loaded" and self.diarization_pipeline is not None
+        return (
+            self._pipeline_status == "loaded" and self.diarization_pipeline is not None
+        )
 
     def get_status(self) -> str:
         """Obtiene el estado del pipeline."""

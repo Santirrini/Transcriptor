@@ -121,7 +121,9 @@ class UpdateChecker:
         # Asegurar que existe el directorio de configuración
         self._last_check_file.parent.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"UpdateChecker inicializado. Versión actual: {self.current_version}")
+        logger.info(
+            f"UpdateChecker inicializado. Versión actual: {self.current_version}"
+        )
 
     def _get_current_version(self) -> str:
         """
@@ -237,7 +239,10 @@ class UpdateChecker:
                 return UpdateSeverity.SECURITY
 
         # Verificar si es feature release (contiene "feature" o secciones nuevas)
-        if any(word in combined_text for word in ["feature", "new", "add", "nuevo", "añade"]):
+        if any(
+            word in combined_text
+            for word in ["feature", "new", "add", "nuevo", "añade"]
+        ):
             return UpdateSeverity.FEATURE
 
         return UpdateSeverity.OPTIONAL
@@ -255,7 +260,9 @@ class UpdateChecker:
         try:
             # Verificar si debemos hacer la comprobación según el intervalo
             if not force and not self._should_check():
-                logger.debug("Verificación de actualizaciones omitida (intervalo no cumplido)")
+                logger.debug(
+                    "Verificación de actualizaciones omitida (intervalo no cumplido)"
+                )
                 return None
 
             # Obtener información de la última release
@@ -292,7 +299,9 @@ class UpdateChecker:
                 version=remote_version,
                 severity=severity,
                 release_url=latest_release.get("html_url", ""),
-                changelog=latest_release.get("body", "No hay información de cambios disponible."),
+                changelog=latest_release.get(
+                    "body", "No hay información de cambios disponible."
+                ),
                 published_at=latest_release.get("published_at", ""),
                 is_security_update=is_security,
             )
@@ -348,7 +357,9 @@ class UpdateChecker:
             request = urllib.request.Request(url, headers=headers)
 
             # Timeout de 10 segundos
-            with urllib.request.urlopen(request, context=context, timeout=10) as response:
+            with urllib.request.urlopen(
+                request, context=context, timeout=10
+            ) as response:
                 if response.status == 200:
                     data = json.loads(response.read().decode("utf-8"))
                     logger.debug(f"Release obtenida: {data.get('tag_name', 'unknown')}")
@@ -423,6 +434,32 @@ class UpdateChecker:
         except Exception:
             return False
 
+    def _sanitize_version(self, version: str) -> str:
+        """
+        Sanitiza una cadena de versión para prevenir path traversal e inyección.
+
+        Args:
+            version: Versión a sanitizar
+
+        Returns:
+            str: Versión sanitizada
+        """
+        if not version:
+            return ""
+
+        # Remover caracteres peligrosos
+        dangerous_chars = ["..", "/", "\\", "<", ">", '"', "'", "&", "|", ";", "$", "`"]
+        sanitized = version.strip()
+        for char in dangerous_chars:
+            sanitized = sanitized.replace(char, "")
+
+        # Validar formato semver básico
+        if not self._is_valid_version(sanitized):
+            logger.warning(f"Versión inválida detectada y rechazada: {version}")
+            return ""
+
+        return sanitized
+
     def skip_version(self, version: str) -> None:
         """
         Marca una versión para omitir en futuras notificaciones.
@@ -431,8 +468,14 @@ class UpdateChecker:
             version: Versión a omitir
         """
         try:
-            self._skip_version_file.write_text(version)
-            logger.info(f"Versión {version} marcada para omitir")
+            # Sanitizar versión antes de guardar
+            sanitized_version = self._sanitize_version(version)
+            if not sanitized_version:
+                logger.warning(f"No se puede omitir versión inválida: {version}")
+                return
+
+            self._skip_version_file.write_text(sanitized_version)
+            logger.info(f"Versión {sanitized_version} marcada para omitir")
         except Exception as e:
             logger.error(f"No se pudo guardar versión omitida: {e}")
 
