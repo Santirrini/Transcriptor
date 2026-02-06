@@ -100,6 +100,7 @@ class TestTranscriberEngine(unittest.TestCase):
             perform_diarization=False,
             live_transcription=False,
             parallel_processing=False,
+            study_mode=False,
         )
 
         # Verificar los mensajes de progreso de transcribe_audio_threaded
@@ -183,6 +184,7 @@ class TestTranscriberEngine(unittest.TestCase):
             perform_diarization=False,
             live_transcription=False,
             parallel_processing=False,
+            study_mode=False,
         )
 
     # PRUEBA: Carga el archivo de audio especificado.
