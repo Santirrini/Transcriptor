@@ -80,7 +80,6 @@ class MicrophoneRecorder:
         self.chunk_queue = queue.Queue(
             maxsize=1000
         )  # Limit queue size to prevent memory issues
-        self._duration_callback_queue: queue.Queue = queue.Queue()
 
         self._pyaudio: Optional["pyaudio.PyAudio"] = None
         self._stream = None
@@ -281,10 +280,10 @@ class MicrophoneRecorder:
                         except queue.Empty:
                             pass
 
-                    # Queue duration update for thread-safe callback
+                    # Direct duration update (callback must handle thread-safety)
                     if self.on_duration_update:
                         duration = self.get_duration()
-                        self._duration_callback_queue.put(duration)
+                        self.on_duration_update(duration)
 
                 except Exception as e:
                     logger.error(f"Error en bucle de grabación: {e}")

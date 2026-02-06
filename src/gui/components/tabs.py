@@ -206,3 +206,8 @@ class Tabs(BaseComponent):
     @property
     def advanced_frame(self):
         return self.config_tab.advanced_frame
+
+    def reset(self):
+        """Propaga el reinicio a los componentes internos."""
+        if hasattr(self, "mic_tab"):
+            self.mic_tab.reset()

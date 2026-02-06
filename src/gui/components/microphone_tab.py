@@ -164,7 +164,7 @@ class MicrophoneTab(BaseComponent):
 
     def _start_recording(self):
         self.status_label.configure(text="● GRABANDO", text_color="#e11d48")
-        self.record_button.configure(text="⏹️ Detener", fg_color=self._get_color("text"), hover_color=self._get_color("text_secondary"))
+        self.record_button.configure(text="⏹️ Detener", fg_color="#475569", hover_color="#334155")
         self.device_dropdown.configure(state="disabled")
         
         # Mostrar controles adicionales
@@ -190,7 +190,7 @@ class MicrophoneTab(BaseComponent):
     def _update_duration(self, seconds):
         if hasattr(self, "duration_label"):
             formatted = StatisticsCalculator.format_duration(seconds)
-            self.duration_label.configure(text=formatted)
+            self.after(0, lambda: self.duration_label.configure(text=formatted))
 
     def apply_theme(self):
         """Aplica el tema actual."""
@@ -216,3 +216,11 @@ class MicrophoneTab(BaseComponent):
                 fg_color=self._get_color("text"),
                 hover_color=self._get_color("text_secondary")
             )
+
+    def reset(self):
+        """Restablece el componente a su estado inicial."""
+        self.status_label.configure(text="Listo para grabar", text_color=self._get_color("text_secondary"))
+        self.record_button.configure(text="🔴 Iniciar Grabación", fg_color="#e11d48", hover_color="#be123c")
+        self.duration_label.configure(text="00:00")
+        self.device_dropdown.configure(state="normal")
+        self.controls_frame.grid_remove()

@@ -591,6 +591,10 @@ class MainWindowTranscriptionMixin:
             self.transcriber_engine.cancel_current_transcription()
             self.is_transcribing = False
 
+        # Detener grabación si está activa
+        if hasattr(self, "mic_recorder") and self.mic_recorder.is_recording():
+            self.stop_microphone_recording()
+
         self._is_paused = False
         self.audio_filepath = None
         self.tabs.file_label.configure(
@@ -602,6 +606,11 @@ class MainWindowTranscriptionMixin:
         self.fragment_data = {}
         self.current_fragment = 0
         self._clear_queue()
+        
+        # Reiniciar componentes de entrada (Tabs)
+        if hasattr(self, "tabs"):
+            self.tabs.reset()
+            
         self._set_ui_state(self.UI_STATE_IDLE)
         self.footer.pause_button.configure(text="⏸ Pausar")
         self.progress_section.reset()
@@ -626,8 +635,25 @@ class MainWindowTranscriptionMixin:
         messagebox.showerror("Error", f"Error en la transcripción:\n{friendly_msg}")
 
     def start_microphone_recording(self):
-        """Inicia grabación desde micrófono."""
+        """Inicia grabación desde micrófono y arranca transcripción en vivo si está habilitada."""
         self.mic_recorder.start_recording()
+        
+        # Si la transcripción en vivo está activada, iniciar el hilo
+        if hasattr(self, "live_transcription_var") and self.live_transcription_var.get():
+            logger.info("Iniciando hilo de transcripción en vivo para el micrófono")
+            lang, model, beam, use_vad, diarization, live, parallel, study, hf_token = self._get_transcription_params()
+            
+            # Limpiar área de transcripción para el nuevo inicio
+            self._prepare_for_transcription()
+            self.is_transcribing = True
+            self._set_ui_state(self.UI_STATE_TRANSCRIBING)
+            
+            thread = threading.Thread(
+                target=self.transcriber_engine.transcribe_mic_stream,
+                args=(self.mic_recorder, self.transcription_queue, lang, model, beam, use_vad, study),
+                daemon=True
+            )
+            thread.start()
 
     def stop_microphone_recording(self):
         """Detiene grabación desde micrófono."""

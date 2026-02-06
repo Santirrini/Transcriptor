@@ -210,6 +210,7 @@ class MainWindow(
             self.ai_url_var,
             self.ai_model_var,
             self.ai_key_var,
+            self.huggingface_token_var,
             self.select_audio_file,
             self.start_video_url_transcription_thread,
             self.start_microphone_recording,
@@ -295,7 +296,10 @@ class MainWindow(
                 self.tabs.transcribe_url_button.configure(state="disabled")
 
     def restart_recording(self):
-        """Reinicia el proceso de grabación."""
+        """Reinicia el proceso de grabación asegurando que la anterior termine."""
+        if self.mic_recorder.is_recording():
+            self.stop_microphone_recording()
+        
         self.reset_process()
         self.start_microphone_recording()
 
