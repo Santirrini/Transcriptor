@@ -25,6 +25,7 @@ class Tabs(BaseComponent):
         perform_diarization_var,
         live_transcription_var,
         parallel_processing_var,
+        study_mode_var,
         mic_recorder,
         dictionary_manager,
         ai_provider_var,
@@ -50,6 +51,7 @@ class Tabs(BaseComponent):
         self.perform_diarization_var = perform_diarization_var
         self.live_transcription_var = live_transcription_var
         self.parallel_processing_var = parallel_processing_var
+        self.study_mode_var = study_mode_var
         self.mic_recorder = mic_recorder
         self.dictionary_manager = dictionary_manager
         self.ai_provider_var = ai_provider_var
@@ -490,6 +492,25 @@ class Tabs(BaseComponent):
         add_tooltip(
             self.parallel_checkbox,
             "Usa múltiples núcleos para procesamiento más rápido",
+            400,
+        )
+
+        self.study_mode_checkbox = ctk.CTkCheckBox(
+            checkbox_frame,
+            text="Modo Estudio (En/Es)",
+            variable=self.study_mode_var,
+            font=("Segoe UI", 12),
+            checkbox_width=22,
+            checkbox_height=22,
+            fg_color=self._get_color("primary"),
+            hover_color=self._get_color("primary_hover"),
+            border_color=self._get_color("border"),
+            text_color=self._get_color("text"),
+        )
+        self.study_mode_checkbox.grid(row=2, column=0, padx=8, pady=6, sticky="w")
+        add_tooltip(
+            self.study_mode_checkbox,
+            "Optimiza la transcripción para audio con mezcla de Inglés y Español",
             400,
         )
 

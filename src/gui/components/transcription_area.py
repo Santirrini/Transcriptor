@@ -101,6 +101,43 @@ class TranscriptionArea(BaseComponent):
         self.transcription_textbox.grid(row=2, column=0, padx=20, pady=(0, 20), sticky="nsew")
         self.transcription_textbox.configure(state="normal")
 
+        # Textbox para Vista Dividida (Panel Derecho)
+        self.study_textbox = ctk.CTkTextbox(
+            self,
+            font=("Segoe UI", 13),
+            fg_color=self._get_color("surface_elevated"), # Ligeramente diferente para distinguir
+            text_color=self._get_hex_color("text"),
+            border_width=1,
+            border_color=self._get_color("border"),
+            corner_radius=10,
+            padx=16,
+            pady=16,
+            height=400,
+        )
+        # Inicialmente oculto
+        self.split_view_active = False
+
+        # Header para Vista Dividida (oculto)
+        self.right_header = ctk.CTkFrame(self, fg_color="transparent")
+        self.right_title = ctk.CTkLabel(
+            self.right_header,
+            text="Notas de Estudio",
+            font=("Segoe UI", 16, "bold"),
+            text_color=self._get_color("text"),
+        )
+        self.right_title.pack(side="left")
+        
+        self.close_split_button = ctk.CTkButton(
+            self.right_header,
+            text="❌ Cerrar Vista",
+            width=100,
+            height=30,
+            fg_color=self._get_color("surface_elevated"),
+            hover_color=self._get_color("border_hover"),
+            command=self.close_split_view,
+        )
+        self.close_split_button.pack(side="right")
+
         # Barra de búsqueda semántica (Nueva)
         self.search_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.search_frame.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 10))
@@ -170,6 +207,39 @@ class TranscriptionArea(BaseComponent):
         if query and self.on_search_callback:
             self.on_search_callback(query)
 
+    def show_split_view(self, content: str, title: str = "Notas de Estudio"):
+        """Activa la vista dividida con el contenido proporcionado."""
+        self.split_view_active = True
+        
+        # Configurar grid para 2 columnas
+        self.grid_columnconfigure(1, weight=1)
+        
+        # Redimensionar textbox original (Columna 0)
+        self.transcription_textbox.grid(row=2, column=0, padx=(20, 10), pady=(0, 20), sticky="nsew")
+        
+        # Mostrar header derecho
+        self.right_header.grid(row=0, column=1, sticky="ew", padx=(10, 20), pady=(16, 12))
+        self.right_title.configure(text=title)
+        
+        # Mostrar textbox derecho (Columna 1)
+        self.study_textbox.configure(state="normal")
+        self.study_textbox.delete("1.0", "end")
+        self.study_textbox.insert("1.0", content)
+        self.study_textbox.configure(state="disabled") # Solo lectura por defecto
+        self.study_textbox.grid(row=2, column=1, padx=(10, 20), pady=(0, 20), sticky="nsew")
+
+    def close_split_view(self):
+        """Cierra la vista dividida."""
+        self.split_view_active = False
+        
+        # Ocultar panel derecho
+        self.study_textbox.grid_remove()
+        self.right_header.grid_remove()
+        
+        # Restaurar grid original
+        self.grid_columnconfigure(1, weight=0)
+        self.transcription_textbox.grid(row=2, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="nsew")
+
     def apply_theme(self):
         """Aplica el tema actual."""
         self.configure(fg_color=self._get_color("surface"), border_color=self._get_color("border"))
@@ -177,6 +247,11 @@ class TranscriptionArea(BaseComponent):
         self.word_count_label.configure(text_color=self._get_color("text_secondary"))
         self.transcription_textbox.configure(
             fg_color=self._get_color("background"),
+            text_color=self._get_hex_color("text"),
+            border_color=self._get_color("border"),
+        )
+        self.study_textbox.configure(
+            fg_color=self._get_color("surface_elevated"),
             text_color=self._get_hex_color("text"),
             border_color=self._get_color("border"),
         )

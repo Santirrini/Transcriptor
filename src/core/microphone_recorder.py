@@ -65,6 +65,7 @@ class MicrophoneRecorder:
         """
         self.gui_queue = gui_queue
         self.on_duration_update = on_duration_update
+        self.chunk_queue = queue.Queue() # Nueva cola para fragmentos de audio en vivo
 
         self._pyaudio: Optional["pyaudio.PyAudio"] = None
         self._stream = None
@@ -181,6 +182,13 @@ class MicrophoneRecorder:
         self._output_filepath = output_filepath
         self._frames = []
         self._total_pause_duration = 0.0
+        
+        # Limpiar cola de fragmentos previos
+        while not self.chunk_queue.empty():
+            try:
+                self.chunk_queue.get_nowait()
+            except queue.Empty:
+                break
 
         try:
             # Obtener formato de audio
@@ -234,6 +242,9 @@ class MicrophoneRecorder:
                     )
                     with self._lock:
                         self._frames.append(data)
+                    
+                    # Enviar a la cola para transcripción en vivo
+                    self.chunk_queue.put(data)
 
                     # Actualizar duración
                     if self.on_duration_update:

@@ -38,7 +38,9 @@ def _transcribe_chunk_worker(
             - language: Idioma
             - beam_size: Tamaño del beam
             - use_vad: Usar VAD
+            - use_vad: Usar VAD
             - ffmpeg_executable: Ruta al ejecutable FFmpeg
+            - initial_prompt: Prompt inicial para Whsiper (opcional)
 
     Returns:
         Tuple de (chunk_index, texto_transcrito, error_message)
@@ -54,6 +56,7 @@ def _transcribe_chunk_worker(
     beam_size = chunk_info["beam_size"]
     use_vad = chunk_info["use_vad"]
     ffmpeg_executable = chunk_info["ffmpeg_executable"]
+    initial_prompt = chunk_info.get("initial_prompt")  # Nuevo campo
 
     temp_chunk_path = None
 
@@ -94,6 +97,7 @@ def _transcribe_chunk_worker(
             beam_size=beam_size,
             vad_filter=use_vad,
             word_timestamps=False,
+            initial_prompt=initial_prompt,
         )
 
         chunk_text = " ".join([segment.text.strip() for segment in segments_generator])
@@ -238,8 +242,15 @@ class TranscriberEngine:
             f"Cargando nuevo modelo Whisper: {model_size} en {self.device} con compute_type={self.compute_type}..."
         )
         try:
+            import multiprocessing as mp
+            cpu_threads = mp.cpu_count()
+            
             model_instance = WhisperModel(
-                model_size, device=self.device, compute_type=self.compute_type
+                model_size, 
+                device=self.device, 
+                compute_type=self.compute_type,
+                cpu_threads=cpu_threads,
+                num_workers=cpu_threads // 2 or 1
             )
             self.model_cache[model_size] = model_instance
             self.current_model = model_instance
@@ -452,6 +463,7 @@ class TranscriberEngine:
         perform_diarization: bool = False,
         live_transcription: bool = False,
         parallel_processing: bool = False,
+        study_mode: bool = False,
     ):
         """
         Inicia el proceso de transcripción de un archivo de audio en un hilo separado.
@@ -527,6 +539,7 @@ class TranscriberEngine:
                 perform_diarization=perform_diarization,
                 live_transcription=live_transcription,
                 parallel_processing=parallel_processing,
+                study_mode=study_mode,
             )
 
         except Exception as e:
@@ -583,6 +596,7 @@ class TranscriberEngine:
                         "beam_size": selected_beam_size,
                         "use_vad": use_vad,
                         "ffmpeg_executable": ffmpeg_executable,
+                        "initial_prompt": initial_prompt,
                     }
                 )
 
@@ -761,6 +775,7 @@ class TranscriberEngine:
         beam_size = chunk_info["beam_size"]
         use_vad = chunk_info["use_vad"]
         ffmpeg_executable = chunk_info["ffmpeg_executable"]
+        initial_prompt = chunk_info.get("initial_prompt")  # Recibir del info
 
         temp_chunk_path = None
         try:
@@ -791,9 +806,7 @@ class TranscriberEngine:
 
             # Transcribir usando la instancia ya cargada (evita recarga de VRAM/RAM)
             effective_language = None if language == "auto" else language
-            initial_prompt = self.dictionary_manager.get_initial_prompt()
-
-            segments_generator, _ = model_instance.transcribe(
+            segments_generator, info = model_instance.transcribe(
                 temp_chunk_path,
                 language=effective_language,
                 beam_size=beam_size,
@@ -825,6 +838,7 @@ class TranscriberEngine:
         perform_diarization: bool = False,
         live_transcription: bool = False,
         parallel_processing: bool = False,
+        study_mode: bool = False,
     ) -> str:
         if model_instance is None:
             if transcription_queue:
@@ -850,14 +864,23 @@ class TranscriberEngine:
             return self._perform_chunked_transcription(
                 audio_filepath,
                 transcription_queue,
-                language=language,
-                model_instance=model_instance,
-                selected_beam_size=selected_beam_size,
-                use_vad=use_vad,
-                chunk_duration=self._chunk_size_seconds,
+                language,
+                model_instance,
+                selected_beam_size,
+                use_vad,
                 live_transcription=live_transcription,
                 parallel_processing=parallel_processing,
+                initial_prompt=self.dictionary_manager.get_initial_prompt()
+                if not study_mode
+                else "This is a physiotherapy lecture involving code-switching between Spanish and English. The transcription should transcribe both languages accurately.",
             )
+
+        # Determinar el prompt inicial
+        initial_prompt = self.dictionary_manager.get_initial_prompt()
+        if study_mode:
+            initial_prompt = "This is a physiotherapy lecture involving code-switching between Spanish and English. The transcription should transcribe both languages accurately."
+            print(f"[INFO] Modo Estudio activado: Usando prompt mixto: '{initial_prompt}'")
+
 
         # --- SIMPLIFICACIÓN DE LA GESTIÓN DE ARCHIVOS ---
         path_to_use_for_processing = audio_filepath  # Ruta del archivo que se usará para todo
@@ -1244,6 +1267,7 @@ class TranscriberEngine:
         perform_diarization,
         live_transcription=False,
         parallel_processing=False,
+        study_mode=False,
     ):
         """
         Método de hilo para descargar y luego transcribir audio de una URL de video.
@@ -1322,6 +1346,7 @@ class TranscriberEngine:
                 perform_diarization=perform_diarization,
                 live_transcription=live_transcription,
                 parallel_processing=parallel_processing,
+                study_mode=study_mode,
             )
 
             # Opcional: Borrar el archivo de audio descargado después de la transcripción
@@ -1352,6 +1377,247 @@ class TranscriberEngine:
                 {"type": "status_update", "data": "Fallo al obtener audio del video."}
             )  # Usar status_update
             self.current_audio_filepath = None
+
+    def transcribe_mic_stream(
+        self,
+        recorder,
+        transcription_queue,
+        language="auto",
+        selected_model_size="small",
+        beam_size=5,
+        use_vad=True,
+        study_mode=False,
+    ):
+        """
+        Transcribe audio stream from MicrophoneRecorder in real-time using a Producer-Consumer pattern.
+        
+        Architecture:
+        - Producer Thread (VAD): Continuously reads audio, detects voice/silence, and segments it.
+        - Consumer (Main Thread): Takes complete segments and transcribes them with Whisper.
+        
+        This prevents the "spiraling latency" where transcription time > audio duration causes buffer growth.
+        """
+        import numpy as np
+        import wave
+        
+        logger.info("Iniciando transcripción en vivo optimizada (Producer-Consumer)...")
+        
+        model = self._load_model(selected_model_size)
+        if not model:
+            return
+
+        effective_language = None if language == "auto" else language
+        base_prompt = self.dictionary_manager.get_initial_prompt()
+        if study_mode:
+            base_prompt = "Physiotherapy lecture, code-switching English/Spanish. Transcribe both accurately."
+
+        # Cargar modelo VAD de Silero
+        vad_model = None
+        try:
+            from faster_whisper.vad import get_vad_model
+            vad_model = get_vad_model()
+            logger.info("[VAD] Modelo Silero VAD cargado correctamente")
+        except Exception as e:
+            logger.error(f"[VAD] Error cargando VAD: {e}. Usando segmentación por tiempo.")
+
+        # Colas y Eventos
+        processing_queue = queue.Queue()
+        stop_event = threading.Event()
+        
+        # Estado compartido
+        context_state = {
+            "confirmed_text": "",
+            "last_segment_text": ""
+        }
+
+        def vad_producer():
+            """
+            Hilo Productor: Lee audio, aplica VAD y emite segmentos listos para transcribir.
+            ¡Nunca debe bloquearse por operaciones lentas!
+            """
+            logger.info("[PRODUCER] Iniciando hilo de análisis de audio...")
+            
+            # Configuración VAD
+            SILENCE_THRESHOLD_MS = 700    # Silencio para cortar frase
+            SPEECH_THRESHOLD = 0.4        # Probabilidad de voz
+            MAX_SEGMENT_SECONDS = 15.0    # Máximo forzoso
+            MIN_SEGMENT_SECONDS = 1.0     # Mínimo para transcribir
+            VAD_CHUNK_SIZE = 512          # 32ms @ 16kHz
+            
+            audio_buffer = bytearray()
+            vad_buffer = np.array([], dtype=np.float32)
+            silence_samples = 0
+            is_speaking = False
+            last_speech_time = time.time()
+            
+            while not stop_event.is_set() and recorder.is_recording():
+                if recorder.is_paused():
+                    time.sleep(0.1)
+                    continue
+
+                try:
+                    # Lectura no bloqueante o con timeout corto
+                    chunk = recorder.chunk_queue.get(timeout=0.1)
+                    audio_buffer.extend(chunk)
+                    
+                    # VAD necesita float32
+                    chunk_np = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+                    vad_buffer = np.concatenate([vad_buffer, chunk_np])
+                    
+                except queue.Empty:
+                    continue
+                
+                # Procesar VAD en ventanas
+                while len(vad_buffer) >= VAD_CHUNK_SIZE:
+                    vad_window = vad_buffer[:VAD_CHUNK_SIZE]
+                    vad_buffer = vad_buffer[VAD_CHUNK_SIZE:]
+                    
+                    if vad_model:
+                        try:
+                            speech_prob = vad_model(vad_window, 16000).item()
+                            if speech_prob >= SPEECH_THRESHOLD:
+                                is_speaking = True
+                                silence_samples = 0
+                                last_speech_time = time.time()
+                            else:
+                                silence_samples += VAD_CHUNK_SIZE
+                        except Exception:
+                            pass # Ignorar errores puntuales de VAD
+                    else:
+                        # Fallback sin VAD: asumir siempre hablando hasta max time
+                        is_speaking = True
+                        silence_samples = 0
+
+                # Lógica de Segmentación
+                silence_ms = (silence_samples / 16000) * 1000
+                buffer_duration = len(audio_buffer) / 32000.0 # 16kHz * 2 bytes
+                
+                should_cut = False
+                cut_reason = ""
+                
+                # 1. Corte por silencio natural después de hablar
+                if is_speaking and silence_ms >= SILENCE_THRESHOLD_MS:
+                    if buffer_duration >= MIN_SEGMENT_SECONDS:
+                        should_cut = True
+                        cut_reason = "silence"
+                
+                # 2. Corte por duración máxima (evitar OOM o lag extremo)
+                elif buffer_duration >= MAX_SEGMENT_SECONDS:
+                    should_cut = True
+                    cut_reason = "max_duration"
+                
+                if should_cut:
+                    # Enviar copia del buffer para procesar
+                    segment_audio = bytes(audio_buffer)
+                    processing_queue.put({
+                        "audio": segment_audio,
+                        "duration": buffer_duration,
+                        "reason": cut_reason
+                    })
+                    logger.info(f"[PRODUCER] Segmento emitido: {buffer_duration:.1f}s ({cut_reason})")
+                    
+                    # Resetear estado
+                    audio_buffer = bytearray()
+                    silence_samples = 0
+                    is_speaking = False
+                    # Mantener un pequeño solapamiento podría ser útil futuro, por ahora limpieza total
+
+            logger.info("[PRODUCER] Hilo terminado.")
+
+        # Iniciar Productor
+        producer_thread = threading.Thread(target=vad_producer, daemon=True)
+        producer_thread.start()
+
+        # Ciclo Consumidor (Main Thread de esta función)
+        try:
+            while not stop_event.is_set():
+                # Verificar si el recorder sigue vivo
+                if not recorder.is_recording():
+                    break
+                    
+                try:
+                    # Esperar segmento del productor
+                    task = processing_queue.get(timeout=0.5)
+                    audio_data = task["audio"]
+                    
+                    # Preparar Prompt con Contexto
+                    current_prompt = base_prompt
+                    if context_state["confirmed_text"]:
+                        # Tomar últimas ~200 chars o últimas palabras
+                        ctx = context_state["confirmed_text"][-200:].strip()
+                        if ctx:
+                            current_prompt = ctx # Whisper usa el prompt como "contexto previo"
+                    
+                    # Guardar a WAV temporal
+                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                        with wave.open(tmp.name, 'wb') as wf:
+                            wf.setnchannels(1)
+                            wf.setsampwidth(2)
+                            wf.setframerate(16000)
+                            wf.writeframes(audio_data)
+                        tmp_path = tmp.name
+                    
+                    # Inferencia Whisper
+                    try:
+                        start_inf = time.time()
+                        # Use repetition_penalty if available (faster-whisper >= 0.10 roughly)
+                        # We turn OFF condition_on_previous_text because we are manually handling initial_prompt
+                        # and it prevents the model from getting stuck in a loop from its own previous output.
+                        segments_gen, _ = model.transcribe(
+                            tmp_path,
+                            language=effective_language,
+                            beam_size=beam_size if not study_mode else 1,
+                            vad_filter=False, 
+                            initial_prompt=current_prompt,
+                            condition_on_previous_text=False, 
+                            temperature=0.0,
+                            repetition_penalty=1.05
+                        )
+                        
+                        text_segments = [s.text.strip() for s in segments_gen]
+                        full_text = " ".join([t for t in text_segments if t])
+                        
+                        inf_time = time.time() - start_inf
+                        logger.info(f"[CONSUMER] Inferencia: {inf_time:.2f}s | Texto: {full_text[:50]}...")
+                        
+                        if full_text:
+                            # 1. Filter common hallucinations
+                            if full_text.lower().strip() in ["subtítulos realizados por", "suscríbete", "gracias por ver"]:
+                                continue
+                            
+                            # 2. Filter loop repetitions (text identical to last segment)
+                            # If audio was silent but VAD triggered (rare), model might just repeat the prompt content.
+                            if context_state["last_segment_text"] and full_text.strip() == context_state["last_segment_text"].strip():
+                                logger.warning(f"[CONSUMER] Repetición detectada y filtrada: '{full_text[:30]}...'")
+                                continue
+
+                            transcription_queue.put({
+                                "type": "new_segment",
+                                "text": full_text + " ",
+                                "is_final": True
+                            })
+                            context_state["confirmed_text"] += " " + full_text
+                            context_state["last_segment_text"] = full_text
+                    
+                    except Exception as e:
+                        logger.error(f"[CONSUMER] Error inferencia: {e}")
+                    finally:
+                        if os.path.exists(tmp_path):
+                            os.remove(tmp_path)
+                            
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    logger.error(f"[CONSUMER] Error loop: {e}")
+                    
+        except Exception as e:
+            logger.error(f"Error fatal en transcribe_mic_stream: {e}")
+            transcription_queue.put({"type": "error", "data": str(e)})
+        finally:
+            stop_event.set()
+            if producer_thread.is_alive():
+                producer_thread.join(timeout=1.0)
+            logger.info("Transcripción en vivo finalizada.")
 
     def transcribe_youtube_audio_threaded(self, *args, **kwargs):
         """Alias para compatibilidad."""

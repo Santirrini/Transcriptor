@@ -7,12 +7,14 @@ Mantiene toda la funcionalidad original con UI renovada.
 import os
 import queue
 import re
+import shutil
 import sys
 import threading
 import time
 import tkinter as tk
 import tkinter.filedialog as filedialog
 import tkinter.messagebox as messagebox
+from datetime import datetime
 
 import customtkinter as ctk
 
@@ -116,6 +118,8 @@ class MainWindow(ctk.CTk):
         self.perform_diarization_var = ctk.BooleanVar(value=False)
         self.live_transcription_var = ctk.BooleanVar(value=False)
         self.parallel_processing_var = ctk.BooleanVar(value=False)
+        self.study_mode_var = ctk.BooleanVar(value=False)
+        self._last_temp_text_len = 0 # Para limpieza de texto temporal en vivo
 
         # Variables para IA Local (LLM)
         self.ai_provider_var = ctk.StringVar(value="Ollama")
@@ -417,6 +421,7 @@ class MainWindow(ctk.CTk):
             self.perform_diarization_var,
             self.live_transcription_var,
             self.parallel_processing_var,
+            self.study_mode_var,
             self.mic_recorder,
             self.transcriber_engine.dictionary_manager,
             self.ai_provider_var,
@@ -460,6 +465,8 @@ class MainWindow(ctk.CTk):
             self.generate_minutes,
             self.summarize_ai,
             self.analyze_sentiment_ai,
+            self.translate_transcription,
+            self.generate_study_notes,
         )
         self.action_buttons.grid(row=5, column=0, sticky="ew", pady=(0, 24))
 
@@ -540,6 +547,7 @@ class MainWindow(ctk.CTk):
             self.perform_diarization_var.get(),
             self.live_transcription_var.get(),
             self.parallel_processing_var.get(),
+            self.study_mode_var.get(),
         )
 
     def select_audio_file(self):
@@ -583,7 +591,7 @@ class MainWindow(ctk.CTk):
 
             self._prepare_for_transcription()
 
-            lang, model, beam_size, use_vad, diarization, live, parallel = (
+            lang, model, beam_size, use_vad, diarization, live, parallel, study_mode = (
                 self._get_transcription_params()
             )
 
@@ -599,7 +607,9 @@ class MainWindow(ctk.CTk):
                         "beam_size": beam_size,
                         "vad": use_vad,
                         "diarization": diarization,
+                        "live": live,
                         "parallel": parallel,
+                        "study_mode": study_mode,
                     },
                 )
             except Exception as e:
@@ -617,6 +627,7 @@ class MainWindow(ctk.CTk):
                     diarization,
                     live,
                     parallel,
+                    study_mode,
                 ),
                 daemon=True,
             )
@@ -637,7 +648,7 @@ class MainWindow(ctk.CTk):
 
         self._prepare_for_transcription()
 
-        lang, model, beam_size, use_vad, diarization, live, parallel = (
+        lang, model, beam_size, use_vad, diarization, live, parallel, study_mode = (
             self._get_transcription_params()
         )
 
@@ -653,6 +664,7 @@ class MainWindow(ctk.CTk):
                 diarization,
                 live,
                 parallel,
+                study_mode,
             ),
             daemon=True,
         )
@@ -762,9 +774,19 @@ class MainWindow(ctk.CTk):
                     self._update_ordered_transcription()
                     self._add_fragment_button(idx + 1, segment_text)
             else:
-                # Comportamiento anterior para modo no-chunked
-                if self.live_transcription_var.get():
-                    self._append_transcription_text(segment_text + " ")
+                # Comportamiento para streaming o modo no-chunked
+                is_final = msg.get("is_final", True)
+                if self.live_transcription_var.get() or self.study_mode_var.get():
+                    if not is_final:
+                        # Usar un prefijo claro para el texto temporal
+                        self._append_transcription_text(f" [{segment_text}]", temporary=True)
+                    else:
+                        self._append_transcription_text(segment_text + " ")
+                    
+                    # Auto-trigger para Notas de Estudio cada ~50 palabras si estamos en modo estudio
+                    word_count = len(self.transcribed_text.split())
+                    if self.study_mode_var.get() and word_count > 20 and word_count % 50 == 0:
+                        self.generate_study_notes(silent=True)
 
         elif msg_type == "transcription_finished":
             self.is_transcribing = False
@@ -920,12 +942,28 @@ class MainWindow(ctk.CTk):
 
             self.current_fragment = fragment_number
 
-    def _append_transcription_text(self, text):
+    def _append_transcription_text(self, text, temporary=False):
         """Añade texto a la transcripción en vivo."""
-        self.transcription_area.transcription_textbox.insert("end", text)
+        # Borrar texto temporal anterior si existe. 
+        # En CTkTextbox, 'end' incluye un newline extra aveces, usamos 'end-1c' como referencia base.
+        if self._last_temp_text_len > 0:
+            try:
+                self.transcription_area.transcription_textbox.delete("end-1c linestart", "end")
+            except:
+                pass 
+            self._last_temp_text_len = 0
+
+        if not temporary:
+            # Texto permanente: se añade al buffer real
+            self.transcription_area.transcription_textbox.insert("end", text)
+            self.transcribed_text += text
+            self._update_word_count()
+        else:
+            # Texto temporal: se añade pero se marca para borrarlo el próximo ciclo
+            self.transcription_area.transcription_textbox.insert("end", text, "temp_text")
+            self._last_temp_text_len = len(text)
+        
         self.transcription_area.transcription_textbox.see("end")
-        self.transcribed_text += text
-        self._update_word_count()
 
     def _update_ordered_transcription(self):
         """Reconstruye la transcripción en orden basándose en fragmentos."""
@@ -1022,10 +1060,9 @@ class MainWindow(ctk.CTk):
         elif state == self.UI_STATE_ERROR:
             self.footer.transcribe_button.configure(state="normal")
             self.footer.pause_button.configure(state="disabled", text="⏸ Pausar")
-            self.footer.reset_button.configure(state="normal")
-            self.action_buttons.copy_button.configure(state="normal")
-            self.action_buttons.save_txt_button.configure(state="normal")
-            self.action_buttons.save_pdf_button.configure(state="normal")
+            self.footer.cancel_button.configure(state="normal")
+            self.action_buttons.export_txt_button.configure(state="normal")
+            self.action_buttons.export_pdf_button.configure(state="normal")
             self.tabs.select_file_button.configure(state="normal")
             self.tabs.transcribe_url_button.configure(
                 state=(
@@ -1305,18 +1342,66 @@ class MainWindow(ctk.CTk):
 
         try:
             self.mic_recorder.start_recording()
-            self.footer.set_transcribing(
-                True
-            )  # Reusar estado de UI para mostrar controles
+            self.footer.set_transcribing(True)
+
+            # Iniciar hilo de transcripción en vivo si aplica
+            if self.study_mode_var.get() or self.live_transcription_var.get():
+                lang, model, beam, vad, diar, live, par, study = self._get_transcription_params()
+                
+                import threading
+                threading.Thread(
+                    target=self.transcriber_engine.transcribe_mic_stream,
+                    args=(
+                        self.mic_recorder,
+                        self.transcription_queue,
+                        lang,
+                        model,
+                        int(beam),
+                        vad,
+                        study
+                    ),
+                    daemon=True
+                ).start()
         except Exception as e:
             messagebox.showerror("Error", f"Error al iniciar grabación: {e}")
 
     def stop_microphone_recording(self):
-        """Detiene la grabación desde el micrófono."""
+        """Detiene la grabación desde el micrófono y guarda el archivo automáticamente."""
         try:
-            self.mic_recorder.stop_recording()
+            temp_filepath = self.mic_recorder.stop_recording()
             self.footer.set_transcribing(False)
+            
+            if temp_filepath and os.path.exists(temp_filepath):
+                # Crear directorio de grabaciones
+                recordings_dir = os.path.join(os.getcwd(), "recordings")
+                os.makedirs(recordings_dir, exist_ok=True)
+                
+                # Generar nombre con timestamp
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                permanent_path = os.path.join(recordings_dir, f"grabacion_{timestamp}.wav")
+                
+                # Copiar archivo temporal a ubicación permanente
+                shutil.copy2(temp_filepath, permanent_path)
+                logger.info(f"Grabación guardada en: {permanent_path}")
+                
+                # Actualizar UI y establecer como archivo seleccionado
+                self.audio_filepath = permanent_path
+                self.tabs.file_label.configure(
+                    text=os.path.basename(permanent_path),
+                    text_color=self._get_color("text")
+                )
+                
+                # Notificar al usuario
+                self.progress_section.status_label.configure(
+                    text=f"Grabación guardada: {os.path.basename(permanent_path)}"
+                )
+                
+                # Cambiar al tab de archivo local
+                self.tabs.input_tabs.set("    Archivo Local    ")
+                self.tabs.show_tab_content("    Archivo Local    ")
+                
         except Exception as e:
+            logger.error(f"Error al detener grabación: {e}")
             messagebox.showerror("Error", f"Error al detener grabación: {e}")
 
     def _on_transcription_saved(self, new_text):
@@ -1494,6 +1579,54 @@ class MainWindow(ctk.CTk):
 
         messagebox.showinfo("Resultados Semánticos", msg)
 
+
+    def translate_transcription(self, silent=False):
+        """Traduce la transcripción actual."""
+        if not self.transcribed_text:
+            if not silent:
+                messagebox.showwarning("Sin texto", "No hay transcripción para traducir.")
+            return
+
+        if not self.ai_handler.client:
+             if not silent:
+                messagebox.showerror("Error IA", "No hay conexión con el servidor de IA.")
+             return
+
+        # Mostrar indicador de carga (simple por ahora)
+        print("[INFO] Iniciando traducción...")
+        import threading
+        threading.Thread(target=self._run_translate_thread, daemon=True).start()
+
+    def _run_translate_thread(self):
+        result = self.ai_handler.translate(self.transcribed_text)
+        if result:
+            self.transcription_queue.put({"type": "ai_result", "mode": "translate", "data": result})
+            # Actualizar UI en el hilo principal a través de after o queue, 
+            # pero ctk a veces permite llamadas directas si no tocan tcl lock.
+            # Mejor usar after para seguridad.
+            self.after(0, lambda: self.transcription_area.show_split_view(result, "Traducción"))
+
+    def generate_study_notes(self, silent=False):
+        """Genera notas de estudio a partir de la transcripción."""
+        if not self.transcribed_text:
+            if not silent:
+                messagebox.showwarning("Sin texto", "No hay transcripción para generar notas.")
+            return
+
+        if not self.ai_handler.client:
+             if not silent:
+                messagebox.showerror("Error IA", "No hay conexión con el servidor de IA.")
+             return
+
+        print("[INFO] Generando notas de estudio...")
+        import threading
+        threading.Thread(target=self._run_study_notes_thread, daemon=True).start()
+
+    def _run_study_notes_thread(self):
+        result = self.ai_handler.generate_study_notes(self.transcribed_text)
+        if result:
+             self.transcription_queue.put({"type": "ai_result", "mode": "study_notes", "data": result})
+             self.after(0, lambda: self.transcription_area.show_split_view(result, "Notas de Estudio"))
 
 if __name__ == "__main__":
     # Para pruebas standalone

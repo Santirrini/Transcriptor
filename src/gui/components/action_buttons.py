@@ -19,6 +19,8 @@ class ActionButtons(BaseComponent):
         generate_minutes_callback,
         summarize_callback,  # Callback para resumen IA
         sentiment_callback,  # Callback para sentimiento IA
+        translate_callback,  # Callback para traducción
+        study_notes_callback,  # Callback para notas de estudio
         **kwargs,
     ):
         super().__init__(parent, theme_manager, **kwargs)
@@ -30,6 +32,8 @@ class ActionButtons(BaseComponent):
         self.generate_minutes_callback = generate_minutes_callback
         self.summarize_callback = summarize_callback
         self.sentiment_callback = sentiment_callback
+        self.translate_callback = translate_callback
+        self.study_notes_callback = study_notes_callback
 
         radius = self._get_border_radius("xl")
 
@@ -155,11 +159,49 @@ class ActionButtons(BaseComponent):
             row=2, column=2, columnspan=2, padx=(5, 20), pady=(10, 20), sticky="ew"
         )
 
+        # Botón Traducción (Study Mode)
+        self.translate_button = ctk.CTkButton(
+            self,
+            text="🌐 TRADUCIR",
+            font=("Segoe UI", 13, "bold"),
+            height=46,
+            fg_color=self._get_color("surface_elevated"),
+            hover_color=self._get_color("border_hover"),
+            text_color=self._get_color("text"),
+            border_width=1,
+            border_color=self._get_color("border"),
+            command=self.translate_callback,
+            state="disabled",
+        )
+        self.translate_button.grid(
+            row=3, column=0, columnspan=2, padx=(20, 5), pady=(10, 20), sticky="ew"
+        )
+
+        # Botón Notas de Estudio (Study Mode)
+        self.study_notes_button = ctk.CTkButton(
+            self,
+            text="📝 NOTAS ESTUDIO",
+            font=("Segoe UI", 13, "bold"),
+            height=46,
+            fg_color=self._get_color("surface_elevated"),
+            hover_color=self._get_color("border_hover"),
+            text_color=self._get_color("text"),
+            border_width=1,
+            border_color=self._get_color("border"),
+            command=self.study_notes_callback,
+            state="disabled",
+        )
+        self.study_notes_button.grid(
+            row=3, column=2, columnspan=2, padx=(5, 20), pady=(10, 20), sticky="ew"
+        )
+
     def set_ai_buttons_state(self, enabled: bool):
         """Habilita o deshabilita los botones de IA."""
         state = "normal" if enabled else "disabled"
         self.summarize_button.configure(state=state)
         self.sentiment_button.configure(state=state)
+        self.translate_button.configure(state=state)
+        self.study_notes_button.configure(state=state)
 
     def apply_theme(self):
         """Aplica el tema actual."""

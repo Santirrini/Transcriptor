@@ -132,3 +132,67 @@ class AIHandler:
         except Exception as e:
             logger.error(f"Error en la petición al LLM local ({self.model_name}): {e}")
             return f"Error: No se pudo conectar con el servidor local de IA ({e})"
+
+    def process_text(
+        self, text: str, task: str = "translate", target_language: str = "es"
+    ) -> Optional[str]:
+        """
+        Procesa texto con el LLM para diversas tareas (traducir, notas de estudio, etc).
+
+        Args:
+            text: Texto a procesar.
+            task: Tarea a realizar ('translate', 'study_notes').
+            target_language: Idioma destino (default 'es').
+        """
+        if not self.client:
+            return None
+
+        if task == "translate":
+            prompt = (
+                f"Translate the following text strictly to {target_language}. "
+                "Do not add explanations or conversational filler. Just the translation:\n\n"
+                f"{text}"
+            )
+        elif task == "study_notes":
+            prompt = (
+                f"Act as a study assistant for a physiotherapy student. "
+                f"Summarize the following text in {target_language}. "
+                "Organize the main ideas into bullet points and **bold** key scientific/medical terms. "
+                "Do not hallucinate facts not present in the text.\n\n"
+                f"{text}"
+            )
+        else:
+            return None
+
+        return self._get_completion(prompt)
+
+    def translate(self, text: str, target_language: str = "es") -> Optional[str]:
+        """Wrapper para traducción literal."""
+        return self.process_text(text, task="translate", target_language=target_language)
+
+    def generate_study_notes(self, text: str, target_language: str = "es") -> Optional[str]:
+        """Wrapper para generar notas de estudio."""
+        return self.process_text(text, task="study_notes", target_language=target_language)
+
+    def extract_keywords(self, text: str) -> List[str]:
+        """Extrae palabras clave científicas del texto."""
+        if not self.client:
+            return []
+
+        prompt = (
+            "Extract a list of key scientific, medical, or technical terms from the following text. "
+            "Return ONLY the list separated by commas, nothing else (no numbering, no intro).\n\n"
+            f"{text}"
+        )
+
+        response = self._get_completion(prompt)
+        if response:
+            # Limpiar y convertir csv a lista
+            try:
+                # Quitar posibles prefijos si el modelo es conversacional
+                clean = response.replace("Here are the keywords:", "").strip()
+                keywords = [k.strip() for k in clean.split(",") if k.strip()]
+                return keywords
+            except:
+                return []
+        return []
