@@ -171,9 +171,9 @@ class TranscriberEngine:
     # Diarización (delegado a DiarizationManager)
     # =========================================================================
 
-    def _load_diarization_pipeline(self):
+    def _load_diarization_pipeline(self, huggingface_token: Optional[str] = None):
         """Carga el pipeline de diarización."""
-        return self.diarization_manager.load_pipeline()
+        return self.diarization_manager.load_pipeline(huggingface_token=huggingface_token)
 
     def align_transcription_with_diarization(self, whisper_segments, diarization_annotation):
         """Alinea transcripción con diarización."""
@@ -225,6 +225,7 @@ class TranscriberEngine:
         live_transcription: bool = False,
         parallel_processing: bool = False,
         study_mode: bool = False,
+        huggingface_token: Optional[str] = None,
     ):
         """
         Inicia transcripción en un hilo separado.
@@ -259,7 +260,7 @@ class TranscriberEngine:
 
             if perform_diarization:
                 try:
-                    self._load_diarization_pipeline()
+                    self._load_diarization_pipeline(huggingface_token=huggingface_token)
                     result_queue.put({"type": "progress", "data": "Pipeline de diarización cargado."})
                 except RuntimeError as e:
                     result_queue.put({"type": "error", "data": str(e)})
@@ -277,6 +278,7 @@ class TranscriberEngine:
                 live_transcription=live_transcription,
                 parallel_processing=parallel_processing,
                 study_mode=study_mode,
+                huggingface_token=huggingface_token,
             )
 
         except Exception as e:
@@ -327,6 +329,7 @@ class TranscriberEngine:
         live_transcription: bool = False,
         parallel_processing: bool = False,
         study_mode: bool = False,
+        huggingface_token: Optional[str] = None,
     ) -> str:
         """
         Ejecuta la transcripción de un archivo de audio.
@@ -387,6 +390,7 @@ class TranscriberEngine:
             use_vad,
             perform_diarization,
             study_mode,
+            huggingface_token=huggingface_token,
         )
 
     def _perform_standard_transcription(
@@ -399,6 +403,7 @@ class TranscriberEngine:
         use_vad: bool,
         perform_diarization: bool,
         study_mode: bool,
+        huggingface_token: Optional[str] = None,
     ) -> str:
         """
         Ejecuta transcripción estándar (sin chunks).
@@ -519,7 +524,7 @@ class TranscriberEngine:
             final_text = ""
             if perform_diarization:
                 final_text = self._process_diarization(
-                    path_to_use, all_segments, transcription_queue
+                    path_to_use, all_segments, transcription_queue, huggingface_token=huggingface_token
                 )
             
             if not final_text:
@@ -551,13 +556,15 @@ class TranscriberEngine:
                     except Exception as e:
                         logger.error(f"No se pudo eliminar archivo temporal: {e}")
 
-    def _process_diarization(self, audio_path: str, all_segments, transcription_queue) -> str:
+    def _process_diarization(self, audio_path: str, all_segments, transcription_queue, huggingface_token: Optional[str] = None) -> str:
         """Procesa diarización y retorna texto alineado."""
         transcription_queue.put({"type": "status_update", "data": "Realizando diarización..."})
 
         try:
             hook = self.diarization_manager.create_progress_hook()
-            diarization_annotation = self.diarization_manager.run_diarization(audio_path, hook)
+            diarization_annotation = self.diarization_manager.run_diarization(
+                audio_path, hook, huggingface_token=huggingface_token
+            )
 
             if diarization_annotation is None:
                 transcription_queue.put(

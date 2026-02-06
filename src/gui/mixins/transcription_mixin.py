@@ -60,6 +60,7 @@ class MainWindowTranscriptionMixin:
             self.live_transcription_var.get(),
             self.parallel_processing_var.get(),
             self.study_mode_var.get(),
+            self.huggingface_token_var.get(),
         )
 
     def select_audio_file(self):
@@ -103,7 +104,7 @@ class MainWindowTranscriptionMixin:
 
             self._prepare_for_transcription()
 
-            lang, model, beam_size, use_vad, diarization, live, parallel, study_mode = (
+            lang, model, beam_size, use_vad, diarization, live, parallel, study_mode, hf_token = (
                 self._get_transcription_params()
             )
 
@@ -140,6 +141,7 @@ class MainWindowTranscriptionMixin:
                     live,
                     parallel,
                     study_mode,
+                    hf_token,
                 ),
                 daemon=True,
             )
@@ -160,7 +162,7 @@ class MainWindowTranscriptionMixin:
 
         self._prepare_for_transcription()
 
-        lang, model, beam_size, use_vad, diarization, live, parallel, study_mode = (
+        lang, model, beam_size, use_vad, diarization, live, parallel, study_mode, hf_token = (
             self._get_transcription_params()
         )
 
@@ -177,6 +179,7 @@ class MainWindowTranscriptionMixin:
                 live,
                 parallel,
                 study_mode,
+                hf_token,
             ),
             daemon=True,
         )

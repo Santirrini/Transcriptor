@@ -26,7 +26,7 @@ class DiarizationManager:
         self.diarization_pipeline = None
         self._diarization_lock = threading.Lock()
 
-    def load_pipeline(self):
+    def load_pipeline(self, huggingface_token: Optional[str] = None):
         """
         Carga el pipeline de diarización de pyannote.audio.
 
@@ -36,6 +36,9 @@ class DiarizationManager:
 
         SEGURIDAD: Verifica que el token HUGGING_FACE_HUB_TOKEN exista y sea válido
         antes de cargar. Nunca expone el token en logs o mensajes de error.
+
+        Args:
+            huggingface_token: Token explícito de Hugging Face. Si es None, busca en ENV.
 
         Returns:
             Pipeline de diarización cargado.
@@ -47,22 +50,20 @@ class DiarizationManager:
         if self.diarization_pipeline is None:
             with self._diarization_lock:
                 if self.diarization_pipeline is None:
-                    # Verificar token de Hugging Face antes de intentar cargar
-                    huggingface_token = os.environ.get("HUGGING_FACE_HUB_TOKEN")
+                    # Usar token proporcionado o buscar en entorno
+                    token = huggingface_token or os.environ.get("HUGGING_FACE_HUB_TOKEN")
 
-                    if not huggingface_token:
+                    if not token:
                         error_msg = (
                             "Token de Hugging Face no configurado. "
-                            "Establece la variable de entorno HUGGING_FACE_HUB_TOKEN "
-                            "con tu token de Hugging Face Hub. "
-                            "Obtén un token en: https://huggingface.co/settings/tokens"
+                            "Establece el token en Configuración o la variable de entorno HUGGING_FACE_HUB_TOKEN."
                         )
                         logger.error(f"[SECURITY ERROR] {error_msg}")
                         self.diarization_pipeline = "error"
                         raise RuntimeError(error_msg)
 
                     # Validar que el token no esté vacío y tenga longitud mínima
-                    if len(huggingface_token.strip()) < 10:
+                    if len(token.strip()) < 10:
                         error_msg = "Token de Hugging Face inválido (demasiado corto). Verifica tu token."
                         logger.error(f"[SECURITY ERROR] {error_msg}")
                         self.diarization_pipeline = "error"
@@ -70,9 +71,9 @@ class DiarizationManager:
 
                     # Mostrar confirmación sin exponer el token (seguridad)
                     masked_token = (
-                        huggingface_token[:4]
-                        + "*" * (len(huggingface_token) - 8)
-                        + huggingface_token[-4:]
+                        token[:4]
+                        + "*" * (len(token) - 8)
+                        + token[-4:]
                     )
                     logger.info(
                         f"[SECURITY INFO] Token de Hugging Face configurado: {masked_token}"
@@ -84,7 +85,7 @@ class DiarizationManager:
 
                         self.diarization_pipeline = Pipeline.from_pretrained(
                             "pyannote/speaker-diarization-3.1",
-                            use_auth_token=True,
+                            use_auth_token=token,
                         )
                         logger.info("Pipeline de diarización cargado exitosamente.")
                     except Exception as e:
@@ -177,13 +178,14 @@ class DiarizationManager:
 
         return formatted_text.strip()
 
-    def run_diarization(self, audio_filepath: str, progress_hook=None):
+    def run_diarization(self, audio_filepath: str, progress_hook=None, huggingface_token: Optional[str] = None):
         """
         Ejecuta la diarización en un archivo de audio.
 
         Args:
             audio_filepath: Ruta al archivo de audio (preferiblemente WAV 16kHz mono).
             progress_hook: Función opcional para recibir actualizaciones de progreso.
+            huggingface_token: Token explícito de Hugging Face.
 
         Returns:
             Anotación de diarización con los turnos de cada hablante.
@@ -191,7 +193,7 @@ class DiarizationManager:
         Raises:
             RuntimeError: Si el pipeline no está cargado o falla la diarización.
         """
-        pipeline = self.load_pipeline()
+        pipeline = self.load_pipeline(huggingface_token=huggingface_token)
 
         if pipeline is None or pipeline == "error":
             raise RuntimeError("Pipeline de diarización no disponible.")

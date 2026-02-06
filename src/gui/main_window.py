@@ -20,6 +20,7 @@ from src.core.microphone_recorder import MicrophoneRecorder
 from src.core.statistics import StatisticsCalculator
 from src.core.subtitle_exporter import SubtitleExporter
 from src.core.transcriber_engine import TranscriberEngine
+from src.core.config_manager import ConfigManager
 from src.gui.components.action_buttons import ActionButtons
 from src.gui.components.footer import Footer
 from src.gui.components.fragments_section import FragmentsSection
@@ -61,6 +62,7 @@ class MainWindow(
 
         # Referencia al motor de transcripción
         self.transcriber_engine = transcriber_engine_instance
+        self.config_manager = ConfigManager()
 
         # Inicializar atributos de estado
         self.audio_filepath = None
@@ -140,6 +142,14 @@ class MainWindow(
         self.ai_url_var = ctk.StringVar(value="http://localhost:11434/v1")
         self.ai_model_var = ctk.StringVar(value="llama3")
         self.ai_key_var = ctk.StringVar(value="not-needed")
+        
+        # Token de Hugging Face persistente
+        self.huggingface_token_var = ctk.StringVar(
+            value=self.config_manager.get("huggingface_token", "")
+        )
+        # Guardar automáticamente cuando cambie
+        self.huggingface_token_var.trace_add("write", self._on_hf_token_change)
+        
         self.theme_var = ctk.BooleanVar(value=theme_manager.current_mode == "dark")
 
     def _create_ui(self):
@@ -298,6 +308,10 @@ class MainWindow(
     def _on_transcription_saved(self):
         """Callback cuando se guarda la transcripción."""
         self.progress_section.status_label.configure(text="Cambios guardados")
+
+    def _on_hf_token_change(self, *args):
+        """Guarda el token cuando cambia."""
+        self.config_manager.set("huggingface_token", self.huggingface_token_var.get())
 
     def on_closing(self):
         """Maneja el evento de cierre de ventana."""

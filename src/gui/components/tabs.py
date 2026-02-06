@@ -32,6 +32,7 @@ class Tabs(BaseComponent):
         ai_url_var,
         ai_model_var,
         ai_key_var,
+        huggingface_token_var,
         select_file_callback,
         start_video_url_callback,
         start_mic_callback,
@@ -126,6 +127,7 @@ class Tabs(BaseComponent):
             ai_url_var,
             ai_model_var,
             ai_key_var,
+            huggingface_token_var,
             test_ai_callback,
         )
 
@@ -158,6 +160,10 @@ class Tabs(BaseComponent):
     @property
     def file_label(self):
         return self.file_tab.file_label
+
+    @property
+    def select_file_button(self):
+        return self.file_tab.select_file_button
 
     @property
     def url_video_entry(self):

@@ -29,6 +29,7 @@ class ConfigTab(BaseComponent):
         ai_url_var,
         ai_model_var,
         ai_key_var,
+        huggingface_token_var,
         test_ai_callback,
         **kwargs,
     ):
@@ -48,6 +49,7 @@ class ConfigTab(BaseComponent):
         self.ai_url_var = ai_url_var
         self.ai_model_var = ai_model_var
         self.ai_key_var = ai_key_var
+        self.huggingface_token_var = huggingface_token_var
         self.test_ai_callback = test_ai_callback
 
         self.grid_columnconfigure(0, weight=1)
@@ -59,6 +61,7 @@ class ConfigTab(BaseComponent):
         self._create_basic_options(scroll)
         self._create_advanced_options(scroll)
         self._create_dictionary_section(scroll)
+        self._create_security_section(scroll)
         self._create_ai_section(scroll)
 
     def _create_basic_options(self, parent):
@@ -333,11 +336,72 @@ class ConfigTab(BaseComponent):
 
         self._refresh_terms_display()
 
+    def _create_security_section(self, parent):
+        sec_separator = ctk.CTkFrame(
+            parent, height=2, fg_color=self._get_color("border")
+        )
+        sec_separator.grid(row=7, column=0, columnspan=2, sticky="ew", pady=20)
+
+        sec_title_label = ctk.CTkLabel(
+            parent,
+            text="Seguridad y Tokens",
+            font=("Segoe UI", 14, "bold"),
+            text_color=self._get_color("text"),
+        )
+        sec_title_label.grid(row=8, column=0, columnspan=2, sticky="w", padx=8)
+
+        sec_desc_label = ctk.CTkLabel(
+            parent,
+            text="Configura tus tokens para servicios externos como Hugging Face.",
+            font=("Segoe UI", 11),
+            text_color=self._get_color("text_muted"),
+        )
+        sec_desc_label.grid(
+            row=9, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 10)
+        )
+
+        hf_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        hf_frame.grid(row=10, column=0, columnspan=2, sticky="ew", padx=8)
+        hf_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            hf_frame,
+            text="Hugging Face Token:",
+            font=("Segoe UI", 12),
+        ).grid(row=0, column=0, padx=(0, 10), sticky="w")
+
+        self.hf_token_entry = ctk.CTkEntry(
+            hf_frame,
+            textvariable=self.huggingface_token_var,
+            placeholder_text="hf_...",
+            font=("Segoe UI", 12),
+            height=35,
+            show="•",
+        )
+        self.hf_token_entry.grid(row=0, column=1, sticky="ew")
+
+        hf_help_btn = ctk.CTkButton(
+            hf_frame,
+            text="?",
+            width=30,
+            height=35,
+            fg_color=self._get_color("surface_elevated"),
+            text_color=self._get_color("text"),
+            hover_color=self._get_color("border_hover"),
+            command=lambda: os.startfile("https://huggingface.co/settings/tokens"),
+        )
+        hf_help_btn.grid(row=0, column=2, padx=(10, 0))
+        add_tooltip(hf_help_btn, "Obtener token en Hugging Face", 300)
+
+        # Re-ajustar filas de secciones siguientes
+        # La sección de AI ahora empieza en la fila 11 (separador)
+        # Pero mi _create_ai_section usa grid estático. Necesito actualizarlo.
+
     def _create_ai_section(self, parent):
         ai_separator = ctk.CTkFrame(
             parent, height=2, fg_color=self._get_color("border")
         )
-        ai_separator.grid(row=7, column=0, columnspan=2, sticky="ew", pady=20)
+        ai_separator.grid(row=11, column=0, columnspan=2, sticky="ew", pady=20)
 
         ai_title_label = ctk.CTkLabel(
             parent,
@@ -345,11 +409,11 @@ class ConfigTab(BaseComponent):
             font=("Segoe UI", 14, "bold"),
             text_color=self._get_color("text"),
         )
-        ai_title_label.grid(row=8, column=0, columnspan=2, sticky="w", padx=8)
+        ai_title_label.grid(row=12, column=0, columnspan=2, sticky="w", padx=8)
 
         ai_config_frame = ctk.CTkFrame(parent, fg_color="transparent")
         ai_config_frame.grid(
-            row=9, column=0, columnspan=2, sticky="ew", padx=8, pady=10
+            row=13, column=0, columnspan=2, sticky="ew", padx=8, pady=10
         )
         ai_config_frame.grid_columnconfigure((1, 3), weight=1)
 
