@@ -12,6 +12,13 @@ from typing import List, Optional
 
 from src.core.logger import logger
 
+# Silenciar advertencias de Hugging Face Hub sobre peticiones no autenticadas
+try:
+    import logging
+    logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+except ImportError:
+    pass
+
 
 class DiarizationManager:
     """
@@ -55,10 +62,11 @@ class DiarizationManager:
 
                     if not token:
                         error_msg = (
-                            "Token de Hugging Face no configurado. "
-                            "Establece el token en Configuración o la variable de entorno HUGGING_FACE_HUB_TOKEN."
+                            "La identificación de hablantes requiere un Token de Hugging Face. "
+                            "Por favor, ve a la pestaña 'Configuración' y usa la 'Guía para obtener tu Token' "
+                            "para configurarlo fácilmente."
                         )
-                        logger.error(f"[SECURITY ERROR] {error_msg}")
+                        logger.error(f"[DIARIZATION] {error_msg}")
                         self.diarization_pipeline = "error"
                         raise RuntimeError(error_msg)
 

@@ -4,6 +4,7 @@ import customtkinter as ctk
 from src.gui.utils.tooltips import add_tooltip
 
 from .base_component import BaseComponent
+from .hf_guide_dialog import HFGuideDialog
 
 
 class ConfigTab(BaseComponent):
@@ -352,13 +353,22 @@ class ConfigTab(BaseComponent):
 
         sec_desc_label = ctk.CTkLabel(
             parent,
-            text="Configura tus tokens para servicios externos como Hugging Face.",
+            text="🔒 Tus tokens se guardan cifrados y vinculados de forma segura a este equipo.",
+            font=("Segoe UI", 11, "italic"),
+            text_color=self._get_color("primary"),
+        )
+        sec_desc_label.grid(
+            row=9, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 5)
+        )
+
+        # Ayuda sobre tokens
+        token_info_label = ctk.CTkLabel(
+            parent,
+            text="Nota: El token de Hugging Face solo es necesario si activas 'Identificar hablantes'.",
             font=("Segoe UI", 11),
             text_color=self._get_color("text_muted"),
         )
-        sec_desc_label.grid(
-            row=9, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 10)
-        )
+        token_info_label.grid(row=10, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 15))
 
         hf_frame = ctk.CTkFrame(parent, fg_color="transparent")
         hf_frame.grid(row=10, column=0, columnspan=2, sticky="ew", padx=8)
@@ -380,28 +390,28 @@ class ConfigTab(BaseComponent):
         )
         self.hf_token_entry.grid(row=0, column=1, sticky="ew")
 
-        hf_help_btn = ctk.CTkButton(
+        self.hf_guide_btn = ctk.CTkButton(
             hf_frame,
-            text="?",
-            width=30,
+            text="Guía: ¿Cómo obtener mi Token?",
+            font=("Segoe UI", 12, "bold"),
             height=35,
             fg_color=self._get_color("surface_elevated"),
-            text_color=self._get_color("text"),
+            text_color=self._get_color("primary"),
             hover_color=self._get_color("border_hover"),
-            command=lambda: os.startfile("https://huggingface.co/settings/tokens"),
+            command=self._show_hf_guide,
         )
-        hf_help_btn.grid(row=0, column=2, padx=(10, 0))
-        add_tooltip(hf_help_btn, "Obtener token en Hugging Face", 300)
+        self.hf_guide_btn.grid(row=0, column=2, padx=(10, 0))
+        add_tooltip(self.hf_guide_btn, "Ver guía paso a paso para conseguir el token", 300)
 
         # Re-ajustar filas de secciones siguientes
-        # La sección de AI ahora empieza en la fila 11 (separador)
+        # La sección de AI ahora empieza en la fila 12 (separador)
         # Pero mi _create_ai_section usa grid estático. Necesito actualizarlo.
 
     def _create_ai_section(self, parent):
         ai_separator = ctk.CTkFrame(
             parent, height=2, fg_color=self._get_color("border")
         )
-        ai_separator.grid(row=11, column=0, columnspan=2, sticky="ew", pady=20)
+        ai_separator.grid(row=12, column=0, columnspan=2, sticky="ew", pady=20)
 
         ai_title_label = ctk.CTkLabel(
             parent,
@@ -409,11 +419,11 @@ class ConfigTab(BaseComponent):
             font=("Segoe UI", 14, "bold"),
             text_color=self._get_color("text"),
         )
-        ai_title_label.grid(row=12, column=0, columnspan=2, sticky="w", padx=8)
+        ai_title_label.grid(row=13, column=0, columnspan=2, sticky="w", padx=8)
 
         ai_config_frame = ctk.CTkFrame(parent, fg_color="transparent")
         ai_config_frame.grid(
-            row=13, column=0, columnspan=2, sticky="ew", padx=8, pady=10
+            row=14, column=0, columnspan=2, sticky="ew", padx=8, pady=10
         )
         ai_config_frame.grid_columnconfigure((1, 3), weight=1)
 
@@ -452,7 +462,7 @@ class ConfigTab(BaseComponent):
 
         ai_status_frame = ctk.CTkFrame(parent, fg_color="transparent")
         ai_status_frame.grid(
-            row=10, column=0, columnspan=2, sticky="ew", padx=8, pady=(5, 15)
+            row=15, column=0, columnspan=2, sticky="ew", padx=8, pady=(5, 15)
         )
         ai_status_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
@@ -485,6 +495,12 @@ class ConfigTab(BaseComponent):
     def _test_ai_connection(self):
         if self.test_ai_callback:
             self.test_ai_callback()
+
+    def _show_hf_guide(self):
+        """Muestra el diálogo de guía para el token de HF."""
+        # Encontrar la ventana raíz (MainWindow)
+        root = self.winfo_toplevel()
+        HFGuideDialog(root, self.theme_manager)
 
     def update_ai_status(self, connected: bool, message: str = ""):
         if connected:

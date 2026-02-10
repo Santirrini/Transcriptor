@@ -143,9 +143,9 @@ class MainWindow(
         self.ai_model_var = ctk.StringVar(value="llama3")
         self.ai_key_var = ctk.StringVar(value="not-needed")
         
-        # Token de Hugging Face persistente
+        # Token de Hugging Face persistente (Guardado de forma segura)
         self.huggingface_token_var = ctk.StringVar(
-            value=self.config_manager.get("huggingface_token", "")
+            value=self.config_manager.get_secure("huggingface_token", "")
         )
         # Guardar automáticamente cuando cambie
         self.huggingface_token_var.trace_add("write", self._on_hf_token_change)
@@ -314,8 +314,8 @@ class MainWindow(
         self.progress_section.status_label.configure(text="Cambios guardados")
 
     def _on_hf_token_change(self, *args):
-        """Guarda el token cuando cambia."""
-        self.config_manager.set("huggingface_token", self.huggingface_token_var.get())
+        """Guarda el token de forma segura cuando cambia."""
+        self.config_manager.set_secure("huggingface_token", self.huggingface_token_var.get())
 
     def on_closing(self):
         """Maneja el evento de cierre de ventana."""

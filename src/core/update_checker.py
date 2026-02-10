@@ -66,7 +66,7 @@ class UpdateChecker:
     """
 
     GITHUB_API_URL = "https://api.github.com/repos/{repo}/releases/latest"
-    GITHUB_REPO = "JoseDiazCodes/DesktopWhisperTranscriber"  # Ajustar según tu repo
+    GITHUB_REPO = "Santirrini/Transcriptor"  # Ajustar según tu repo
     CURRENT_VERSION = "1.0.0"  # Se actualizará dinámicamente desde __init__ o archivo
 
     # Patrones para detectar actualizaciones de seguridad en changelogs
@@ -370,7 +370,7 @@ class UpdateChecker:
 
         except urllib.error.HTTPError as e:
             if e.code == 404:
-                logger.error(f"Repositorio no encontrado: {self.github_repo}")
+                logger.debug(f"Repositorio no encontrado: {self.github_repo}")
             elif e.code == 403:
                 logger.error("Límite de API de GitHub excedido. Intenta más tarde.")
             else:

@@ -246,7 +246,7 @@ class IntegrityChecker:
         """
         try:
             if not self.manifest_path.exists():
-                logger.warning(f"Manifest de integridad no encontrado: {self.manifest_path}")
+                logger.info(f"Manifest de integridad no encontrado: {self.manifest_path}")
                 return None
 
             with open(self.manifest_path, "r", encoding="utf-8") as f:

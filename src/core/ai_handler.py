@@ -193,7 +193,7 @@ class AIHandler:
             logger.info(f"Conexión exitosa con {self.model_name} en {self.base_url}")
             return True
         except Exception as e:
-            logger.info(
+            logger.debug(
                 f"El servidor de IA local no está disponible (esto es normal si no se usa Ollama/LM Studio): {e}"
             )
             return False
