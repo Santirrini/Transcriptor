@@ -165,16 +165,17 @@ class MicrophoneTab(BaseComponent):
     def _start_recording(self):
         self.status_label.configure(text="● GRABANDO", text_color="#e11d48")
         self.record_button.configure(text="⏹️ Detener", fg_color="#475569", hover_color="#334155")
+        self.duration_label.configure(text="00:00")
         self.device_dropdown.configure(state="disabled")
         
         # Mostrar controles adicionales
         self.controls_frame.grid()
         
+        # Registrar callback ANTES de iniciar para no perder actualizaciones
+        self.recorder.on_duration_update = self._update_duration
+        
         # Iniciar grabación mediante callback de MainWindow
         self.start_callback()
-        
-        # Registrar callback de actualización de duración
-        self.recorder.on_duration_update = self._update_duration
 
     def _stop_recording(self):
         self.status_label.configure(text="Grabación finalizada", text_color=self._get_color("text_secondary"))

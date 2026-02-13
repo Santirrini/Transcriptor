@@ -434,16 +434,21 @@ class ChunkedTranscriber:
         progress = (total_done / num_chunks) * 100
         elapsed = time.time() - start_process_time
 
+        current_time = min(total_done * chunk_duration, total_duration)
+        processing_rate = total_done / elapsed if elapsed > 0 else 0
+        remaining_time = -1
+        if processing_rate > 0 and total_duration > current_time:
+            remaining_time = (total_duration - current_time) / processing_rate
+
         transcription_queue.put(
             {
                 "type": "progress_update",
                 "data": {
                     "percentage": progress,
-                    "current_time": total_done * chunk_duration,
+                    "current_time": current_time,
                     "total_duration": total_duration,
-                    "estimated_remaining_time": (num_chunks - total_done)
-                    * (elapsed / max(total_done, 1)),
-                    "processing_rate": total_done / max(elapsed, 1),
+                    "estimated_remaining_time": remaining_time,
+                    "processing_rate": processing_rate,
                     "parallel_workers": parallel_workers,
                     "chunks_completed": completed_chunks,
                     "chunks_failed": failed_chunks,

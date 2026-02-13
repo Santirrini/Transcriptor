@@ -206,6 +206,7 @@ class MicrophoneRecorder:
 
         self._output_filepath = output_filepath
         self._frames = []
+        self._frames_byte_count = 0
         self._total_pause_duration = 0.0
 
         # Limpiar cola de fragmentos previos
@@ -275,10 +276,16 @@ class MicrophoneRecorder:
                     except queue.Full:
                         # Queue is full, remove oldest item and add new one
                         try:
-                            self.chunk_queue.get_nowait()
+                            dropped_data = self.chunk_queue.get_nowait()
                             self.chunk_queue.put_nowait(data)
+                            logger.warning(
+                                f"Audio chunk dropped due to full queue. "
+                                f"Dropped size: {len(dropped_data)} bytes, Queue size: {self.chunk_queue.qsize()}"
+                            )
                         except queue.Empty:
-                            pass
+                            logger.warning(
+                                "Queue was unexpectedly empty while trying to drop chunk"
+                            )
 
                     # Direct duration update (callback must handle thread-safety)
                     if self.on_duration_update:
@@ -380,7 +387,14 @@ class MicrophoneRecorder:
                     }
                 )
 
-            return self._output_filepath
+            filepath = self._output_filepath
+
+            # Reset state for next recording
+            with self._lock:
+                self._frames = []
+                self._frames_byte_count = 0
+
+            return filepath
 
         except Exception as e:
             logger.error(f"Error al guardar grabación: {e}")

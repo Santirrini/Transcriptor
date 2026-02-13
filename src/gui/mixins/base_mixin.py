@@ -33,12 +33,19 @@ class MainWindowBaseMixin:
 
     def _format_time(self, seconds: float) -> str:
         """Formatea segundos a formato legible."""
+        if seconds < 0 or seconds is None:
+            return "0s"
         if seconds < 60:
             return f"{int(seconds)}s"
         elif seconds < 3600:
-            return f"{int(seconds // 60)}m {int(seconds % 60)}s"
+            minutes = int(seconds // 60)
+            secs = int(seconds % 60)
+            return f"{minutes}m {secs}s"
         else:
-            return f"{int(seconds // 3600)}h {int((seconds % 3600) // 60)}m"
+            hours = int(seconds // 3600)
+            minutes = int((seconds % 3600) // 60)
+            secs = int(seconds % 60)
+            return f"{hours}h {minutes}m {secs}s"
 
     def _on_theme_change(self, mode: str):
         """Callback cuando cambia el tema."""

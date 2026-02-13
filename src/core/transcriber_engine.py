@@ -17,7 +17,7 @@ import queue
 import tempfile
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+
 from typing import Any, Dict, Optional
 
 from faster_whisper import WhisperModel
@@ -72,8 +72,6 @@ class TranscriberEngine:
         self._max_workers = 4
         self._chunk_size_seconds = 30
         self._max_file_size_chunked = 500 * 1024 * 1024  # 500MB
-        self._transcription_cache = {}
-        self._thread_pool = ThreadPoolExecutor(max_workers=2)
 
         # Módulos especializados
         self.dictionary_manager = DictionaryManager()
@@ -105,7 +103,9 @@ class TranscriberEngine:
         """Determina si un archivo necesita procesamiento por chunks."""
         try:
             file_size = self._get_file_size(filepath)
-            if hasattr(file_size, "__int__") or isinstance(file_size, (int, float, str)):
+            if hasattr(file_size, "__int__") or isinstance(
+                file_size, (int, float, str)
+            ):
                 actual_size = int(file_size)
             else:
                 return False
@@ -173,15 +173,21 @@ class TranscriberEngine:
 
     def _load_diarization_pipeline(self, huggingface_token: Optional[str] = None):
         """Carga el pipeline de diarización."""
-        return self.diarization_manager.load_pipeline(huggingface_token=huggingface_token)
+        return self.diarization_manager.load_pipeline(
+            huggingface_token=huggingface_token
+        )
 
-    def align_transcription_with_diarization(self, whisper_segments, diarization_annotation):
+    def align_transcription_with_diarization(
+        self, whisper_segments, diarization_annotation
+    ):
         """Alinea transcripción con diarización."""
         return self.diarization_manager.align_transcription_with_diarization(
             whisper_segments, diarization_annotation
         )
 
-    def _preprocess_audio_for_diarization(self, input_filepath: str, output_filepath: str):
+    def _preprocess_audio_for_diarization(
+        self, input_filepath: str, output_filepath: str
+    ):
         """Preprocesa audio para diarización."""
         return self.audio_handler.preprocess_audio(input_filepath, output_filepath)
 
@@ -248,20 +254,28 @@ class TranscriberEngine:
 
         try:
             result_queue.put(
-                {"type": "progress", "data": f"Cargando modelo '{selected_model_size}'..."}
+                {
+                    "type": "progress",
+                    "data": f"Cargando modelo '{selected_model_size}'...",
+                }
             )
             model_instance = self._load_model(selected_model_size)
 
             if model_instance is None:
                 result_queue.put(
-                    {"type": "error", "data": f"No se pudo cargar el modelo '{selected_model_size}'."}
+                    {
+                        "type": "error",
+                        "data": f"No se pudo cargar el modelo '{selected_model_size}'.",
+                    }
                 )
                 return
 
             if perform_diarization:
                 try:
                     self._load_diarization_pipeline(huggingface_token=huggingface_token)
-                    result_queue.put({"type": "progress", "data": "Pipeline de diarización cargado."})
+                    result_queue.put(
+                        {"type": "progress", "data": "Pipeline de diarización cargado."}
+                    )
                 except RuntimeError as e:
                     result_queue.put({"type": "error", "data": str(e)})
                     return
@@ -315,7 +329,9 @@ class TranscriberEngine:
         self, chunk_info: Dict[str, Any], model_instance
     ):
         """Delega al ChunkedTranscriber."""
-        return self.chunked_transcriber.transcribe_single_chunk(chunk_info, model_instance)
+        return self.chunked_transcriber.transcribe_single_chunk(
+            chunk_info, model_instance
+        )
 
     def _perform_transcription(
         self,
@@ -429,17 +445,25 @@ class TranscriberEngine:
             filename, extension = os.path.splitext(audio_filepath)
             if perform_diarization and extension.lower() != ".wav":
                 transcription_queue.put(
-                    {"type": "status_update", "data": "Preprocesando audio a WAV para diarización..."}
+                    {
+                        "type": "status_update",
+                        "data": "Preprocesando audio a WAV para diarización...",
+                    }
                 )
                 with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_f:
                     temp_wav_path = temp_f.name
                 try:
-                    self._preprocess_audio_for_diarization(audio_filepath, temp_wav_path)
+                    self._preprocess_audio_for_diarization(
+                        audio_filepath, temp_wav_path
+                    )
                     path_to_use = temp_wav_path
                     is_temp_file = True
                 except RuntimeError as e:
                     transcription_queue.put(
-                        {"type": "error", "data": f"Fallo en preprocesamiento: {e}. Intentando sin diarización."}
+                        {
+                            "type": "error",
+                            "data": f"Fallo en preprocesamiento: {e}. Intentando sin diarización.",
+                        }
                     )
                     perform_diarization = False
                     if os.path.exists(temp_wav_path):
@@ -452,7 +476,9 @@ class TranscriberEngine:
             )
 
             effective_language = None if language == "auto" else language
-            transcription_queue.put({"type": "status_update", "data": "Obteniendo información del audio..."})
+            transcription_queue.put(
+                {"type": "status_update", "data": "Obteniendo información del audio..."}
+            )
 
             segments_generator, info = model_instance.transcribe(
                 path_to_use,
@@ -465,7 +491,9 @@ class TranscriberEngine:
 
             total_duration = info.duration
             transcription_queue.put({"type": "total_duration", "data": total_duration})
-            transcription_queue.put({"type": "status_update", "data": "Iniciando transcripción..."})
+            transcription_queue.put(
+                {"type": "status_update", "data": "Iniciando transcripción..."}
+            )
 
             # Procesar segmentos
             all_segments = []
@@ -475,77 +503,103 @@ class TranscriberEngine:
 
             for segment in segments_generator:
                 if self._cancel_event.is_set():
-                    transcription_queue.put({"type": "status_update", "data": "Transcripción cancelada."})
-                    transcription_queue.put({"type": "error", "data": "Proceso cancelado por el usuario."})
+                    transcription_queue.put(
+                        {"type": "status_update", "data": "Transcripción cancelada."}
+                    )
+                    transcription_queue.put(
+                        {"type": "error", "data": "Proceso cancelado por el usuario."}
+                    )
                     return ""
 
                 all_segments.append(segment)
 
                 if self._paused:
-                    transcription_queue.put({"type": "status_update", "data": "Transcripción pausada."})
+                    transcription_queue.put(
+                        {"type": "status_update", "data": "Transcripción pausada."}
+                    )
                     self._pause_event.wait()
                     if self._cancel_event.is_set():
                         return ""
-                    transcription_queue.put({"type": "status_update", "data": "Reanudando..."})
+                    transcription_queue.put(
+                        {"type": "status_update", "data": "Reanudando..."}
+                    )
 
                 # Actualizar progreso
                 processed_duration = segment.end
                 elapsed = time.time() - start_time
-                if elapsed > 0:
-                    processing_rate = processed_duration / elapsed
-                
-                remaining_time = (
-                    (total_duration - processed_duration) / processing_rate
-                    if processing_rate > 0
-                    else -1
-                )
-                progress = (processed_duration / total_duration * 100) if total_duration > 0 else 0
+                processing_rate = processed_duration / elapsed if elapsed > 0 else 0
 
-                transcription_queue.put({
-                    "type": "progress_update",
-                    "data": {
-                        "percentage": progress,
-                        "current_time": processed_duration,
-                        "total_duration": total_duration,
-                        "estimated_remaining_time": remaining_time,
-                        "processing_rate": processing_rate,
+                remaining_time = -1
+                if processing_rate > 0 and total_duration > processed_duration:
+                    remaining_time = (
+                        total_duration - processed_duration
+                    ) / processing_rate
+
+                progress = (
+                    (processed_duration / total_duration * 100)
+                    if total_duration > 0
+                    else 0
+                )
+
+                transcription_queue.put(
+                    {
+                        "type": "progress_update",
+                        "data": {
+                            "percentage": progress,
+                            "current_time": processed_duration,
+                            "total_duration": total_duration,
+                            "estimated_remaining_time": remaining_time,
+                            "processing_rate": processing_rate,
+                        },
                     }
-                })
+                )
 
                 if not perform_diarization:
-                    transcription_queue.put({
-                        "type": "new_segment",
-                        "text": segment.text.strip(),
-                        "start": segment.start,
-                        "end": segment.end,
-                    })
+                    transcription_queue.put(
+                        {
+                            "type": "new_segment",
+                            "text": segment.text.strip(),
+                            "start": segment.start,
+                            "end": segment.end,
+                        }
+                    )
 
             # Procesar diarización
             final_text = ""
             if perform_diarization:
                 final_text = self._process_diarization(
-                    path_to_use, all_segments, transcription_queue, huggingface_token=huggingface_token
+                    path_to_use,
+                    all_segments,
+                    transcription_queue,
+                    huggingface_token=huggingface_token,
                 )
-            
+
             if not final_text:
                 final_text = " ".join([s.text.strip() for s in all_segments])
 
             # Finalizar
             transcription_duration = time.time() - start_time
-            transcription_queue.put({"type": "status_update", "data": "Procesamiento completado."})
-            transcription_queue.put({
-                "type": "transcription_finished",
-                "final_text": final_text,
-                "real_time": transcription_duration,
-            })
+            transcription_queue.put(
+                {"type": "status_update", "data": "Procesamiento completado."}
+            )
+            transcription_queue.put(
+                {
+                    "type": "transcription_finished",
+                    "final_text": final_text,
+                    "real_time": transcription_duration,
+                }
+            )
 
             return ""
 
         except Exception as e:
             logger.error(f"Error en transcripción: {e}")
             import traceback
+
             traceback.print_exc()
-            transcription_queue.put({"type": "error", "data": f"Error en transcripción: {str(e)}"})
+            transcription_queue.put(
+                {"type": "error", "data": f"Error en transcripción: {str(e)}"}
+            )
             return ""
 
         finally:
@@ -556,9 +610,17 @@ class TranscriberEngine:
                     except Exception as e:
                         logger.error(f"No se pudo eliminar archivo temporal: {e}")
 
-    def _process_diarization(self, audio_path: str, all_segments, transcription_queue, huggingface_token: Optional[str] = None) -> str:
+    def _process_diarization(
+        self,
+        audio_path: str,
+        all_segments,
+        transcription_queue,
+        huggingface_token: Optional[str] = None,
+    ) -> str:
         """Procesa diarización y retorna texto alineado."""
-        transcription_queue.put({"type": "status_update", "data": "Realizando diarización..."})
+        transcription_queue.put(
+            {"type": "status_update", "data": "Realizando diarización..."}
+        )
 
         try:
             hook = self.diarization_manager.create_progress_hook()
@@ -572,13 +634,19 @@ class TranscriberEngine:
                 )
                 return ""
 
-            return self.align_transcription_with_diarization(all_segments, diarization_annotation)
+            return self.align_transcription_with_diarization(
+                all_segments, diarization_annotation
+            )
 
         except RuntimeError as e:
-            transcription_queue.put({"type": "error", "data": f"Fallo en diarización: {e}"})
+            transcription_queue.put(
+                {"type": "error", "data": f"Fallo en diarización: {e}"}
+            )
             return ""
         except Exception as e:
-            transcription_queue.put({"type": "error", "data": f"Error inesperado en diarización: {e}"})
+            transcription_queue.put(
+                {"type": "error", "data": f"Error inesperado en diarización: {e}"}
+            )
             return ""
 
     # =========================================================================

@@ -142,14 +142,14 @@ class MainWindow(
         self.ai_url_var = ctk.StringVar(value="http://localhost:11434/v1")
         self.ai_model_var = ctk.StringVar(value="llama3")
         self.ai_key_var = ctk.StringVar(value="not-needed")
-        
+
         # Token de Hugging Face persistente (Guardado de forma segura)
         self.huggingface_token_var = ctk.StringVar(
             value=self.config_manager.get_secure("huggingface_token", "")
         )
         # Guardar automáticamente cuando cambie
         self.huggingface_token_var.trace_add("write", self._on_hf_token_change)
-        
+
         self.theme_var = ctk.BooleanVar(value=theme_manager.current_mode == "dark")
 
     def _create_ui(self):
@@ -299,9 +299,23 @@ class MainWindow(
         """Reinicia el proceso de grabación asegurando que la anterior termine."""
         if self.mic_recorder.is_recording():
             self.stop_microphone_recording()
-        
+
         self.reset_process()
         self.start_microphone_recording()
+
+        # Actualizar la UI del MicrophoneTab para mostrar los controles
+        if hasattr(self, "tabs") and hasattr(self.tabs, "mic_tab"):
+            self.tabs.mic_tab.status_label.configure(
+                text="● GRABANDO", text_color="#e11d48"
+            )
+            self.tabs.mic_tab.record_button.configure(
+                text="⏹️ Detener", fg_color="#475569", hover_color="#334155"
+            )
+            self.tabs.mic_tab.device_dropdown.configure(state="disabled")
+            self.tabs.mic_tab.controls_frame.grid()
+
+        # Mostrar los controles del footer (detener, reiniciar, guardar y salir)
+        self.footer.set_transcribing(True, is_paused=False)
 
     def save_and_start_new(self):
         """Guarda la transcripción actual e inicia una nueva."""
@@ -315,7 +329,9 @@ class MainWindow(
 
     def _on_hf_token_change(self, *args):
         """Guarda el token de forma segura cuando cambia."""
-        self.config_manager.set_secure("huggingface_token", self.huggingface_token_var.get())
+        self.config_manager.set_secure(
+            "huggingface_token", self.huggingface_token_var.get()
+        )
 
     def on_closing(self):
         """Maneja el evento de cierre de ventana."""
