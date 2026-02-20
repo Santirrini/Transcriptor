@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from faster_whisper import WhisperModel
 
-from src.core.logger import logger
+from ..logger import logger
 
 
 def transcribe_chunk_worker(

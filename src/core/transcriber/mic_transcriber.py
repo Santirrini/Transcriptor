@@ -14,7 +14,7 @@ from typing import Optional
 
 import numpy as np
 
-from src.core.logger import logger
+from ..logger import logger
 
 
 class MicTranscriber:
@@ -268,14 +268,14 @@ class MicTranscriber:
                         tmp_path,
                         language=effective_language,
                         beam_size=beam_size if not study_mode else 1,
-                        vad_filter=False,
+                        vad_filter=True,
                         initial_prompt=current_prompt,
                         condition_on_previous_text=False,
-                        temperature=0.0,
+                        temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
                         compression_ratio_threshold=2.4,
                         log_prob_threshold=-1.0,
                         no_speech_threshold=0.6,
-                        repetition_penalty=1.1,
+                        repetition_penalty=1.2,
                     )
 
                     text_segments = [s.text.strip() for s in segments_gen]
@@ -295,16 +295,26 @@ class MicTranscriber:
                         ]:
                             continue
 
-                        # Filtrar repeticiones
+                        # Filtrar repeticiones exactas
                         if (
                             context_state["last_segment_text"]
                             and full_text.strip()
                             == context_state["last_segment_text"].strip()
                         ):
                             logger.warning(
-                                f"[CONSUMER] Repetición detectada y filtrada: '{full_text[:30]}...'"
+                                f"[CONSUMER] Repetición exacta filtrada: '{full_text[:30]}...'"
                             )
                             continue
+
+                        # Filtrar posibles alucinaciones (baja entropía léxica)
+                        words = full_text.lower().split()
+                        if len(words) > 5:
+                            unique_words = set(words)
+                            if len(unique_words) / len(words) < 0.3:
+                                logger.warning(
+                                    f"[CONSUMER] Posible alucinación filtrada (baja entropía): '{full_text[:30]}...'"
+                                )
+                                continue
 
                         transcription_queue.put(
                             {

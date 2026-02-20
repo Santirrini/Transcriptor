@@ -2,8 +2,8 @@ import os
 
 from fpdf import FPDF
 
-from src.core.exceptions import ExportError
-from src.core.logger import logger
+from .exceptions import ExportError
+from .logger import logger
 
 
 class TranscriptionExporter:

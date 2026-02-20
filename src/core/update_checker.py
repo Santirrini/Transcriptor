@@ -17,7 +17,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
-from src.core.logger import logger
+from .logger import logger
 
 
 class UpdateSeverity(Enum):

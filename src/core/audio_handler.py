@@ -8,9 +8,9 @@ from typing import Any, Dict, List, Optional
 
 import yt_dlp
 
-from src.core.audit_logger import AuditEventType, audit_logger, log_youtube_download
-from src.core.exceptions import AudioProcessingError, SecurityError
-from src.core.logger import logger
+from .audit_logger import AuditEventType, audit_logger, log_youtube_download
+from .exceptions import AudioProcessingError, SecurityError
+from .logger import logger
 
 
 class AudioHandler:

@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
-from src.core.logger import logger
+from .logger import logger
 
 
 @dataclass

@@ -10,7 +10,7 @@ import queue
 import threading
 from typing import Optional
 
-from src.core.logger import logger
+from ..logger import logger
 
 
 class VideoDownloader:

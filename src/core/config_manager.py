@@ -7,7 +7,7 @@ import hashlib
 import json
 import os
 import uuid
-from src.core.logger import logger
+from .logger import logger
 
 class ConfigManager:
     """Gestiona la persistencia de configuraciones en un archivo JSON."""

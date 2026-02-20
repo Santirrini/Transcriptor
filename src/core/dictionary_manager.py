@@ -9,7 +9,7 @@ del parámetro initial_prompt.
 import json
 import os
 from typing import List, Set
-from src.core.logger import logger
+from .logger import logger
 
 class DictionaryManager:
     """Gestiona la persistencia y recuperación de términos del diccionario personalizado."""

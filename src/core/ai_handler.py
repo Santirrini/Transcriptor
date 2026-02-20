@@ -9,7 +9,7 @@ import json
 import re
 from typing import Optional, Dict, List
 from openai import OpenAI
-from src.core.logger import logger
+from .logger import logger
 
 
 class AIHandler:

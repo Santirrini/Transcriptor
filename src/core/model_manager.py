@@ -10,8 +10,8 @@ from typing import Dict, Optional
 
 from faster_whisper import WhisperModel
 
-from src.core.exceptions import ModelLoadError
-from src.core.logger import logger
+from .exceptions import ModelLoadError
+from .logger import logger
 
 
 class ModelManager:

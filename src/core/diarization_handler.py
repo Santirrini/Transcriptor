@@ -8,8 +8,8 @@ import os
 import threading
 from typing import Any, List, Optional
 
-from src.core.exceptions import ConfigurationError, DiarizationError
-from src.core.logger import logger
+from .exceptions import ConfigurationError, DiarizationError
+from .logger import logger
 
 
 class DiarizationHandler:

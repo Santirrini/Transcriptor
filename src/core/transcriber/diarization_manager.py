@@ -10,7 +10,7 @@ import os
 import threading
 from typing import List, Optional
 
-from src.core.logger import logger
+from ..logger import logger
 
 # Silenciar advertencias de Hugging Face Hub sobre peticiones no autenticadas
 try:

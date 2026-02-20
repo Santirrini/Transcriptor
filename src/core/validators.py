@@ -14,8 +14,8 @@ import re
 from pathlib import Path
 from typing import Optional, Tuple
 
-from src.core.exceptions import SecurityError
-from src.core.logger import logger
+from .exceptions import SecurityError
+from .logger import logger
 
 
 class InputValidator:

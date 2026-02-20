@@ -15,8 +15,8 @@ import wave
 from dataclasses import dataclass
 from typing import Callable, List, Optional
 
-from src.core.exceptions import AudioProcessingError
-from src.core.logger import logger
+from .exceptions import AudioProcessingError
+from .logger import logger
 
 # Intentar importar pyaudio, pero no fallar si no está disponible
 try:

@@ -26,7 +26,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from src.core.logger import logger
+from .logger import logger
 
 
 class AuditEventType(Enum):

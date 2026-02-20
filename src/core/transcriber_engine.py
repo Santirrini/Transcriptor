@@ -22,11 +22,11 @@ from typing import Any, Dict, Optional
 
 from faster_whisper import WhisperModel
 
-from src.core.audio_handler import AudioHandler
-from src.core.dictionary_manager import DictionaryManager
-from src.core.exporter import TranscriptionExporter
-from src.core.logger import logger
-from src.core.transcriber import (
+from .audio_handler import AudioHandler
+from .dictionary_manager import DictionaryManager
+from .exporter import TranscriptionExporter
+from .logger import logger
+from .transcriber import (
     ChunkedTranscriber,
     DiarizationManager,
     MicTranscriber,

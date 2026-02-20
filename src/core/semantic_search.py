@@ -8,7 +8,7 @@ y realizar búsquedas por 'sentido' o 'contexto' en lugar de palabras clave exac
 import numpy as np
 from typing import List, Dict, Optional
 from sklearn.metrics.pairwise import cosine_similarity
-from src.core.logger import logger
+from .logger import logger
 
 class SemanticSearch:
     """Implementa búsqueda por similitud vectorial."""
