@@ -67,6 +67,7 @@ class Tabs(BaseComponent):
             self,
             values=[
                 "    Archivo Local    ",
+                "    Video Local    ",
                 "    URL de Video    ",
                 "    Micrófono    ",
                 "    Configuración    ",
