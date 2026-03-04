@@ -61,13 +61,13 @@ class TranscriptionExporter:
             safe_text = safe_text.replace("\u201c", '"').replace("\u201d", '"')
             safe_text = safe_text.replace("\u2018", "'").replace("\u2019", "'")
 
-            try:
-                pdf.multi_cell(0, 10, txt=safe_text)
-            except UnicodeEncodeError:
-                # Si falla, forzar a Latin-1 con reemplazo
-                pdf.multi_cell(0, 10, txt=safe_text.encode("latin-1", "replace").decode("latin-1"))
+            # FPDF2 with default Core Fonts (helvetica/Arial) only supports latin-1.
+            # Convert to latin-1 with 'replace' to avoid FPDFException for characters like "ż".
+            safe_text = safe_text.encode("latin-1", "replace").decode("latin-1")
+
+            pdf.multi_cell(0, 10, txt=safe_text)
             pdf.output(filepath)
             logger.info(f"Transcripción guardada como PDF en: {filepath}")
-        except (IOError, OSError, ValueError) as e:
+        except Exception as e:
             logger.error(f"Error al guardar PDF: {e}")
             raise ExportError(f"Error al guardar PDF: {e}", export_format="pdf")
