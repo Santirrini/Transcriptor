@@ -85,6 +85,29 @@ class MainWindowTranscriptionMixin:
             self.tabs.file_label.configure(
                 text=filename, text_color=self._get_color("text")
             )
+            try:
+                log_file_open(filepath, os.path.getsize(filepath))
+            except Exception as e:
+                logger.error(f"Error logging file open: {e}")
+
+    def select_video_file(self):
+        """Abre diálogo para seleccionar archivo de video."""
+        filetypes = [
+            ("Video files", "*.mp4 *.avi *.mkv *.mov *.webm *.flv *.wmv *.m4v"),
+            ("MP4 files", "*.mp4"),
+            ("AVI files", "*.avi"),
+            ("MKV files", "*.mkv"),
+            ("All files", "*.*"),
+        ]
+
+        filepath = filedialog.askopenfilename(
+            title="Seleccionar archivo de video", filetypes=filetypes
+        )
+
+        if filepath:
+            self.tabs.video_tab.video_filepath = filepath
+            filename = os.path.basename(filepath)
+            self.tabs.video_tab.update_video_label(filename)
             # Log audit event
             try:
                 log_file_open(filepath, os.path.getsize(filepath))
@@ -142,6 +165,53 @@ class MainWindowTranscriptionMixin:
                     parallel,
                     study_mode,
                     hf_token,
+                ),
+                daemon=True,
+            )
+            thread.start()
+
+            self.is_transcribing = True
+            self._set_ui_state(self.UI_STATE_TRANSCRIBING)
+
+        elif "Video Local" in current_tab:
+            # Transcripción de archivo de video local
+            video_filepath = getattr(self.tabs.video_tab, "video_filepath", None)
+            if not video_filepath:
+                messagebox.showwarning(
+                    "Sin archivo", "Por favor selecciona un archivo de video primero."
+                )
+                return
+
+            self._prepare_for_transcription()
+
+            lang, model, beam_size, use_vad, diarization, live, parallel, study_mode, hf_token = (
+                self._get_transcription_params()
+            )
+
+            # Obtener opciones de optimización
+            normalize_vol = self.tabs.video_tab.normalize_var.get()
+            noise_reduce = self.tabs.video_tab.noise_reduction_var.get()
+
+            # Mostrar progreso en la UI
+            self.tabs.video_tab.show_conversion_progress()
+
+            # Iniciar en hilo separado
+            thread = threading.Thread(
+                target=self.transcriber_engine.transcribe_video_file_threaded,
+                args=(
+                    video_filepath,
+                    self.transcription_queue,
+                    lang,
+                    model,
+                    beam_size,
+                    use_vad,
+                    diarization,
+                    live,
+                    parallel,
+                    study_mode,
+                    hf_token,
+                    normalize_vol,
+                    noise_reduce,
                 ),
                 daemon=True,
             )
@@ -357,6 +427,18 @@ class MainWindowTranscriptionMixin:
                 text=f"Descargando: {filename}"
             )
 
+        elif msg_type == "video_conversion_progress":
+            data = msg.get("data", {})
+            percentage = data.get("percentage", 0)
+            message = data.get("message", "")
+            self.tabs.video_tab.update_conversion_progress(percentage, message)
+            self.progress_section.status_label.configure(text=message)
+
+        elif msg_type == "video_conversion_complete":
+            data = msg.get("data", {})
+            self.tabs.video_tab.update_conversion_progress(100, "Conversión completada")
+            # El motor continuará automáticamente con la transcripción
+
         # Mensajes de grabación
         elif msg_type == "recording_started":
             self.progress_section.status_label.configure(
@@ -526,6 +608,8 @@ class MainWindowTranscriptionMixin:
             self.footer.transcribe_button.configure(state="normal")
             self.footer.pause_button.configure(state="disabled", text="⏸ Pausar")
             self.tabs.select_file_button.configure(state="normal")
+            if hasattr(self.tabs, "select_video_button"):
+                self.tabs.select_video_button.configure(state="normal")
             self.tabs.transcribe_url_button.configure(
                 state=(
                     "normal"
@@ -538,6 +622,8 @@ class MainWindowTranscriptionMixin:
         elif state == self.UI_STATE_TRANSCRIBING:
             self.footer.set_transcribing(True, is_paused=False)
             self.tabs.select_file_button.configure(state="disabled")
+            if hasattr(self.tabs, "select_video_button"):
+                self.tabs.select_video_button.configure(state="disabled")
             self.tabs.transcribe_url_button.configure(state="disabled")
 
         elif state == self.UI_STATE_PAUSED:
@@ -546,6 +632,8 @@ class MainWindowTranscriptionMixin:
         elif state == self.UI_STATE_COMPLETED:
             self.footer.set_transcribing(False)
             self.tabs.select_file_button.configure(state="normal")
+            if hasattr(self.tabs, "select_video_button"):
+                self.tabs.select_video_button.configure(state="normal")
             self.tabs.transcribe_url_button.configure(
                 state=(
                     "normal"
@@ -561,6 +649,8 @@ class MainWindowTranscriptionMixin:
             self.action_buttons.export_txt_button.configure(state="normal")
             self.action_buttons.export_pdf_button.configure(state="normal")
             self.tabs.select_file_button.configure(state="normal")
+            if hasattr(self.tabs, "select_video_button"):
+                self.tabs.select_video_button.configure(state="normal")
             self.tabs.transcribe_url_button.configure(
                 state=(
                     "normal"
@@ -610,6 +700,8 @@ class MainWindowTranscriptionMixin:
         # Reiniciar componentes de entrada (Tabs)
         if hasattr(self, "tabs"):
             self.tabs.reset()
+            if hasattr(self.tabs, "video_tab"):
+                self.tabs.video_tab.reset()
             
         self._set_ui_state(self.UI_STATE_IDLE)
         self.footer.pause_button.configure(text="⏸ Pausar")

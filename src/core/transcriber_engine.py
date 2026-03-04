@@ -26,6 +26,7 @@ from .audio_handler import AudioHandler
 from .dictionary_manager import DictionaryManager
 from .exporter import TranscriptionExporter
 from .logger import logger
+from .video_converter import AudioOptimizationOptions, VideoConverter
 from .transcriber import (
     ChunkedTranscriber,
     DiarizationManager,
@@ -81,6 +82,7 @@ class TranscriberEngine:
         self.chunked_transcriber = ChunkedTranscriber(self)
         self.mic_transcriber = MicTranscriber(self)
         self.video_downloader = VideoDownloader(self)
+        self.video_converter = VideoConverter()
 
         logger.info("TranscriberEngine inicializado. Modelos se cargan bajo demanda.")
 
@@ -706,6 +708,129 @@ class TranscriberEngine:
     def transcribe_youtube_audio_threaded(self, *args, **kwargs):
         """Alias para compatibilidad."""
         return self.transcribe_video_url_threaded(*args, **kwargs)
+
+    # =========================================================================
+    # Transcripción de archivos de video locales
+    # =========================================================================
+
+    def transcribe_video_file_threaded(
+        self,
+        video_filepath: str,
+        result_queue: queue.Queue,
+        language: str = "es",
+        selected_model_size: str = "small",
+        selected_beam_size: int = 5,
+        use_vad: bool = False,
+        perform_diarization: bool = False,
+        live_transcription: bool = False,
+        parallel_processing: bool = False,
+        study_mode: bool = False,
+        huggingface_token: Optional[str] = None,
+        normalize_volume: bool = True,
+        noise_reduction: bool = False,
+    ):
+        """
+        Convierte un archivo de video a audio optimizado y lo transcribe.
+
+        Pipeline completo:
+        1. Extrae audio del video
+        2. Optimiza audio para velocidad de transcripción
+        3. Transcribe el audio optimizado
+        4. Limpia archivos temporales
+
+        Args:
+            video_filepath: Ruta al archivo de video.
+            result_queue: Cola para comunicarse con la GUI.
+            language: Idioma del audio.
+            selected_model_size: Tamaño del modelo Whisper.
+            selected_beam_size: Tamaño del beam.
+            use_vad: Si usar VAD.
+            perform_diarization: Si identificar hablantes.
+            live_transcription: Si enviar resultados en tiempo real.
+            parallel_processing: Si usar procesamiento paralelo.
+            study_mode: Si optimizar para audio mixto.
+            huggingface_token: Token de Hugging Face.
+            normalize_volume: Si normalizar volumen del audio.
+            noise_reduction: Si aplicar reducción de ruido.
+        """
+        self._cancel_event.clear()
+        self._paused = False
+        self._pause_event.set()
+
+        # Configurar la queue del video converter
+        self.video_converter.gui_queue = result_queue
+
+        audio_path = None
+        try:
+            # 1. Validar archivo de video
+            is_valid, error_msg = self.video_converter.validate_video_file(
+                video_filepath
+            )
+            if not is_valid:
+                result_queue.put({"type": "error", "data": error_msg})
+                return
+
+            result_queue.put(
+                {
+                    "type": "status_update",
+                    "data": "Preparando conversión de video a audio...",
+                }
+            )
+
+            # 2. Configurar opciones de optimización
+            options = AudioOptimizationOptions(
+                normalize_volume=normalize_volume,
+                noise_reduction=noise_reduction,
+            )
+
+            # 3. Convertir y optimizar
+            audio_path = self.video_converter.convert_and_optimize(
+                video_filepath, options=options
+            )
+
+            if self._cancel_event.is_set():
+                result_queue.put(
+                    {"type": "error", "data": "Proceso cancelado por el usuario."}
+                )
+                return
+
+            # 4. Transcribir el audio resultante
+            result_queue.put(
+                {
+                    "type": "status_update",
+                    "data": "Audio extraído. Iniciando transcripción...",
+                }
+            )
+
+            self.transcribe_audio_threaded(
+                audio_path,
+                result_queue,
+                language=language,
+                selected_model_size=selected_model_size,
+                selected_beam_size=selected_beam_size,
+                use_vad=use_vad,
+                perform_diarization=perform_diarization,
+                live_transcription=live_transcription,
+                parallel_processing=parallel_processing,
+                study_mode=study_mode,
+                huggingface_token=huggingface_token,
+            )
+
+        except Exception as e:
+            logger.error(f"Error en transcripción de video: {e}")
+            result_queue.put(
+                {"type": "error", "data": f"Error al procesar video: {str(e)}"}
+            )
+        finally:
+            # Limpiar archivos temporales
+            if audio_path and os.path.exists(audio_path):
+                try:
+                    os.remove(audio_path)
+                    logger.info(f"Archivo temporal eliminado: {audio_path}")
+                except OSError as e:
+                    logger.warning(
+                        f"No se pudo eliminar archivo temporal: {e}"
+                    )
 
     # =========================================================================
     # Transcripción de micrófono (delegado a MicTranscriber)

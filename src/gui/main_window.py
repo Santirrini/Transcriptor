@@ -212,6 +212,7 @@ class MainWindow(
             self.ai_key_var,
             self.huggingface_token_var,
             self.select_audio_file,
+            self.select_video_file,
             self.start_video_url_transcription_thread,
             self.start_microphone_recording,
             self.stop_microphone_recording,

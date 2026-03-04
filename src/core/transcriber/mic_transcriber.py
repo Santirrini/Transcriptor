@@ -134,92 +134,99 @@ class MicTranscriber:
         """
         logger.info("[PRODUCER] Iniciando hilo de análisis de audio...")
 
-        # Configuración VAD
-        SILENCE_THRESHOLD_MS = 800
-        SPEECH_THRESHOLD = 0.5
-        MAX_SEGMENT_SECONDS = 15.0
-        MIN_SEGMENT_SECONDS = 1.0
-        VAD_CHUNK_SIZE = 512
+        try:
+            # Configuración VAD
+            SILENCE_THRESHOLD_MS = 800
+            SPEECH_THRESHOLD = 0.5
+            MAX_SEGMENT_SECONDS = 15.0
+            MIN_SEGMENT_SECONDS = 1.0
+            VAD_CHUNK_SIZE = 512
 
-        audio_buffer = bytearray()
-        vad_buffer = np.array([], dtype=np.float32)
-        silence_samples = 0
-        is_speaking = False
+            audio_buffer = bytearray()
+            vad_buffer = np.array([], dtype=np.float32)
+            silence_samples = 0
+            is_speaking = False
 
-        while not stop_event.is_set() and recorder.is_recording():
-            if recorder.is_paused():
-                time.sleep(0.1)
-                continue
+            while not stop_event.is_set() and recorder.is_recording():
+                if recorder.is_paused():
+                    time.sleep(0.1)
+                    continue
 
-            try:
-                chunk = recorder.chunk_queue.get(timeout=0.1)
-                audio_buffer.extend(chunk)
+                try:
+                    chunk = recorder.chunk_queue.get(timeout=0.1)
+                    audio_buffer.extend(chunk)
 
-                # VAD necesita float32
-                chunk_np = (
-                    np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
-                )
-                vad_buffer = np.concatenate([vad_buffer, chunk_np])
+                    # VAD necesita float32
+                    chunk_np = (
+                        np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+                    )
+                    vad_buffer = np.concatenate([vad_buffer, chunk_np])
 
-            except queue.Empty:
-                continue
+                except queue.Empty:
+                    continue
 
-            # Procesar VAD en ventanas
-            while len(vad_buffer) >= VAD_CHUNK_SIZE:
-                vad_window = vad_buffer[:VAD_CHUNK_SIZE]
-                vad_buffer = vad_buffer[VAD_CHUNK_SIZE:]
+                # Procesar VAD en ventanas
+                while len(vad_buffer) >= VAD_CHUNK_SIZE:
+                    vad_window = vad_buffer[:VAD_CHUNK_SIZE]
+                    vad_buffer = vad_buffer[VAD_CHUNK_SIZE:]
 
-                if vad_model:
-                    try:
-                        speech_prob = vad_model(vad_window, 16000).item()
-                        if speech_prob >= SPEECH_THRESHOLD:
-                            is_speaking = True
-                            silence_samples = 0
-                        else:
-                            silence_samples += VAD_CHUNK_SIZE
-                    except Exception:
-                        pass
-                else:
-                    is_speaking = True
-                    silence_samples = 0
+                    if vad_model:
+                        try:
+                            # faster-whisper VAD expects (audio, num_samples=512) where num_samples must match audio length.
+                            # We can just pass vad_window directly since its length matches the default chunk size of 512.
+                            speech_prob = vad_model(vad_window).item()
+                            if speech_prob >= SPEECH_THRESHOLD:
+                                is_speaking = True
+                                silence_samples = 0
+                            else:
+                                silence_samples += VAD_CHUNK_SIZE
+                        except Exception as inner_e:
+                            logger.error(f"[VAD] Error en inferencia VAD: {inner_e}")
+                            pass
+                    else:
+                        is_speaking = True
+                        silence_samples = 0
 
-            # Lógica de Segmentación
-            silence_ms = (silence_samples / 16000) * 1000
-            buffer_duration = len(audio_buffer) / 32000.0
+                # Lógica de Segmentación
+                silence_ms = (silence_samples / 16000) * 1000
+                buffer_duration = len(audio_buffer) / 32000.0
 
-            should_cut = False
-            cut_reason = ""
+                should_cut = False
+                cut_reason = ""
 
-            # 1. Corte por silencio natural
-            if is_speaking and silence_ms >= SILENCE_THRESHOLD_MS:
-                if buffer_duration >= MIN_SEGMENT_SECONDS:
+                # 1. Corte por silencio natural
+                if is_speaking and silence_ms >= SILENCE_THRESHOLD_MS:
+                    if buffer_duration >= MIN_SEGMENT_SECONDS:
+                        should_cut = True
+                        cut_reason = "silence"
+
+                # 2. Corte por duración máxima
+                elif buffer_duration >= MAX_SEGMENT_SECONDS:
                     should_cut = True
-                    cut_reason = "silence"
+                    cut_reason = "max_duration"
 
-            # 2. Corte por duración máxima
-            elif buffer_duration >= MAX_SEGMENT_SECONDS:
-                should_cut = True
-                cut_reason = "max_duration"
+                if should_cut:
+                    segment_audio = bytes(audio_buffer)
+                    processing_queue.put(
+                        {
+                            "audio": segment_audio,
+                            "duration": buffer_duration,
+                            "reason": cut_reason,
+                        }
+                    )
+                    logger.info(
+                        f"[PRODUCER] Segmento emitido: {buffer_duration:.1f}s ({cut_reason})"
+                    )
 
-            if should_cut:
-                segment_audio = bytes(audio_buffer)
-                processing_queue.put(
-                    {
-                        "audio": segment_audio,
-                        "duration": buffer_duration,
-                        "reason": cut_reason,
-                    }
-                )
-                logger.info(
-                    f"[PRODUCER] Segmento emitido: {buffer_duration:.1f}s ({cut_reason})"
-                )
+                    # Resetear estado
+                    audio_buffer = bytearray()
+                    silence_samples = 0
+                    is_speaking = False
 
-                # Resetear estado
-                audio_buffer = bytearray()
-                silence_samples = 0
-                is_speaking = False
+            logger.info("[PRODUCER] Hilo terminado.")
+        except Exception as e:
+            logger.error(f"[PRODUCER] Hilo terminó con error crítico: {e}", exc_info=True)
 
-        logger.info("[PRODUCER] Hilo terminado.")
 
     def _consumer_loop(
         self,
@@ -252,23 +259,17 @@ class MicTranscriber:
                     if ctx:
                         current_prompt = ctx
 
-                # Guardar a WAV temporal
-                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                    with wave.open(tmp.name, "wb") as wf:
-                        wf.setnchannels(1)
-                        wf.setsampwidth(2)
-                        wf.setframerate(16000)
-                        wf.writeframes(audio_data)
-                    tmp_path = tmp.name
+                # Convertir bytes (int16) directamente a Numpy Float32 en memoria (Evita I/O de disco)
+                audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
 
-                # Inferencia Whisper
+                # Inferencia Whisper Directa
                 try:
                     start_inf = time.time()
                     segments_gen, _ = model.transcribe(
-                        tmp_path,
+                        audio_np,
                         language=effective_language,
                         beam_size=beam_size if not study_mode else 1,
-                        vad_filter=True,
+                        vad_filter=False,
                         initial_prompt=current_prompt,
                         condition_on_previous_text=False,
                         temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
@@ -329,8 +330,7 @@ class MicTranscriber:
                 except Exception as e:
                     logger.error(f"[CONSUMER] Error inferencia: {e}")
                 finally:
-                    if os.path.exists(tmp_path):
-                        os.remove(tmp_path)
+                    pass
 
             except queue.Empty:
                 continue

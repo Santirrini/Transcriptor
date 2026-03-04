@@ -4,6 +4,7 @@ import customtkinter as ctk
 from .base_component import BaseComponent
 from .config_tab import ConfigTab
 from .file_tab import FileTab
+from .video_tab import VideoTab
 from .microphone_tab import MicrophoneTab
 from .url_tab import UrlTab
 
@@ -34,6 +35,7 @@ class Tabs(BaseComponent):
         ai_key_var,
         huggingface_token_var,
         select_file_callback,
+        select_video_callback,
         start_video_url_callback,
         start_mic_callback,
         stop_mic_callback,
@@ -94,6 +96,10 @@ class Tabs(BaseComponent):
             self.tab_content_frame, self.theme_manager, select_file_callback
         )
 
+        self.video_tab = VideoTab(
+            self.tab_content_frame, self.theme_manager, select_video_callback
+        )
+
         self.url_tab = UrlTab(
             self.tab_content_frame,
             self.theme_manager,
@@ -142,12 +148,14 @@ class Tabs(BaseComponent):
 
     def show_tab_content(self, tab_name):
         # Ocultar todos los frames de contenido
-        for tab in [self.file_tab, self.url_tab, self.mic_tab, self.config_tab]:
+        for tab in [self.file_tab, self.video_tab, self.url_tab, self.mic_tab, self.config_tab]:
             tab.grid_remove()
 
         # Mostrar el frame correspondiente al tab seleccionado
         if tab_name == "    Archivo Local    ":
             self.file_tab.grid(row=0, column=0, sticky="nsew")
+        elif tab_name == "    Video Local    ":
+            self.video_tab.grid(row=0, column=0, sticky="nsew")
         elif tab_name == "    URL de Video    ":
             self.url_tab.grid(row=0, column=0, sticky="nsew")
         elif tab_name == "    Micrófono    ":
@@ -164,6 +172,14 @@ class Tabs(BaseComponent):
     @property
     def select_file_button(self):
         return self.file_tab.select_file_button
+
+    @property
+    def video_label(self):
+        return self.video_tab.video_label
+
+    @property
+    def select_video_button(self):
+        return self.video_tab.select_video_button
 
     @property
     def url_video_entry(self):
@@ -199,6 +215,7 @@ class Tabs(BaseComponent):
 
         # Propagar tema a las sub-pestañas
         self.file_tab.apply_theme()
+        self.video_tab.apply_theme()
         self.url_tab.apply_theme()
         self.mic_tab.apply_theme()
         self.config_tab.apply_theme()
@@ -211,3 +228,5 @@ class Tabs(BaseComponent):
         """Propaga el reinicio a los componentes internos."""
         if hasattr(self, "mic_tab"):
             self.mic_tab.reset()
+        if hasattr(self, "video_tab"):
+            self.video_tab.reset()

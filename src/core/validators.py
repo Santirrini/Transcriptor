@@ -115,6 +115,18 @@ class InputValidator:
         + TWITTER_PATTERNS
     )
 
+    # Extensiones de video permitidas
+    ALLOWED_VIDEO_EXTENSIONS = [
+        ".mp4",
+        ".avi",
+        ".mkv",
+        ".mov",
+        ".webm",
+        ".flv",
+        ".wmv",
+        ".m4v",
+    ]
+
     # Protocolos peligrosos
     DANGEROUS_PROTOCOLS = ["file://", "javascript:", "data:", "vbscript:"]
 
@@ -204,6 +216,66 @@ class InputValidator:
         if extension not in cls.ALLOWED_AUDIO_EXTENSIONS:
             error_msg = f"Extensión de archivo no permitida: {extension}. Permitidas: {cls.ALLOWED_AUDIO_EXTENSIONS}"
             logger.warning(error_msg)
+            return False, error_msg
+
+        return True, ""
+
+    @classmethod
+    def validate_video_extension(cls, filepath: str) -> Tuple[bool, str]:
+        """
+        Valida que el archivo tenga una extensión de video permitida.
+
+        Args:
+            filepath: Ruta al archivo
+
+        Returns:
+            Tuple[bool, str]: (es_válida, mensaje_de_error o cadena vacía)
+        """
+        path = Path(filepath)
+        extension = path.suffix.lower()
+
+        # Verificar si está bloqueada
+        if extension in cls.BLOCKED_EXTENSIONS:
+            error_msg = f"Extensión de archivo bloqueada por seguridad: {extension}"
+            logger.security(error_msg)
+            return False, error_msg
+
+        # Verificar si es video permitido
+        if extension not in cls.ALLOWED_VIDEO_EXTENSIONS:
+            error_msg = (
+                f"Extensión de video no permitida: {extension}. "
+                f"Permitidas: {cls.ALLOWED_VIDEO_EXTENSIONS}"
+            )
+            logger.warning(error_msg)
+            return False, error_msg
+
+        return True, ""
+
+    @classmethod
+    def validate_video_file(cls, filepath: str) -> Tuple[bool, str]:
+        """
+        Valida completamente un archivo de video (extensión + existencia + tamaño).
+
+        Args:
+            filepath: Ruta al archivo de video
+
+        Returns:
+            Tuple[bool, str]: (es_válido, mensaje_de_error o cadena vacía)
+        """
+        # Validar seguridad de ruta
+        is_safe, error_msg = cls.validate_path_security(filepath)
+        if not is_safe:
+            return False, error_msg
+
+        # Validar extensión
+        is_valid, error_msg = cls.validate_video_extension(filepath)
+        if not is_valid:
+            return False, error_msg
+
+        # Validar existencia y tamaño (4GB max para video)
+        max_video_size = 4 * 1024 * 1024 * 1024  # 4GB
+        is_valid, error_msg = cls.validate_file_size(filepath, max_video_size)
+        if not is_valid:
             return False, error_msg
 
         return True, ""
