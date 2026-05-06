@@ -35,7 +35,7 @@ class HFGuideDialog(ctk.CTkToplevel):
         # Título
         title_label = ctk.CTkLabel(
             main_frame,
-            text="Paso a paso para identificar hablantes",
+            text="Identificación de Hablantes (pyannote 3.1)",
             font=("Segoe UI", 18, "bold"),
             text_color=self._get_color("primary")
         )
@@ -43,9 +43,9 @@ class HFGuideDialog(ctk.CTkToplevel):
 
         # Descripción
         desc_text = (
-            "Para que la aplicación pueda separar las voces de diferentes personas (Identificación de Hablantes), "
-            "necesitamos conectarnos con los modelos de inteligencia artificial de Hugging Face.\n\n"
-            "Sigue estos 3 pasos sencillos:"
+            "Para separar las voces (Diarización), esta aplicación utiliza el modelo profesional "
+            "pyannote 3.1 hospedado en Hugging Face.\n\n"
+            "Sigue estos 3 pasos para habilitar el servicio:"
         )
         desc_label = ctk.CTkLabel(
             main_frame,

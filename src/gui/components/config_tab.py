@@ -1,4 +1,5 @@
 
+import webbrowser
 import customtkinter as ctk
 
 from src.gui.utils.tooltips import add_tooltip
@@ -376,7 +377,7 @@ class ConfigTab(BaseComponent):
 
         ctk.CTkLabel(
             hf_frame,
-            text="Hugging Face Token:",
+            text="Hugging Face Token (pyannote 3.1):",
             font=("Segoe UI", 12),
         ).grid(row=0, column=0, padx=(0, 10), sticky="w")
 
@@ -402,6 +403,21 @@ class ConfigTab(BaseComponent):
         )
         self.hf_guide_btn.grid(row=0, column=2, padx=(10, 0))
         add_tooltip(self.hf_guide_btn, "Ver guía paso a paso para conseguir el token", 300)
+
+        # Enlace directo al modelo
+        self.hf_model_link = ctk.CTkButton(
+            parent,
+            text="🔗 Abrir modelo: pyannote/speaker-diarization-3.1",
+            font=("Segoe UI", 11, "underline"),
+            height=20,
+            fg_color="transparent",
+            text_color=self._get_color("text_secondary"),
+            hover_color=self._get_color("background"),
+            anchor="w",
+            command=lambda: webbrowser.open("https://huggingface.co/pyannote/speaker-diarization-3.1")
+        )
+        self.hf_model_link.grid(row=11, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 10))
+        add_tooltip(self.hf_model_link, "Ir directamente a la página del modelo para aceptar los términos", 300)
 
         # Re-ajustar filas de secciones siguientes
         # La sección de AI ahora empieza en la fila 12 (separador)
